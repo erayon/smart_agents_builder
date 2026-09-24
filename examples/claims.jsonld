@@ -1,0 +1,1141 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "@vocab": "urn:ctxstudio:clm:",
+    "clm": "urn:ctxstudio:clm:",
+    "schema": "http://schema.org/",
+    "id": "@id",
+    "type": "@type",
+    "name": "schema:name",
+    "description": "schema:description",
+    "attributes": {
+      "@id": "clm:attributes",
+      "@type": "@json"
+    },
+    "rels": {
+      "@id": "clm:rels",
+      "@type": "@json"
+    },
+    "identityKey": "clm:identityKey",
+    "humanRef": "clm:humanRef",
+    "invariant": {
+      "@id": "clm:invariant",
+      "@container": "@set"
+    },
+    "precondition": {
+      "@id": "clm:precondition",
+      "@container": "@set"
+    },
+    "postcondition": {
+      "@id": "clm:postcondition",
+      "@container": "@set"
+    },
+    "performedBy": "clm:performedBy",
+    "usesSystem": {
+      "@id": "clm:usesSystem",
+      "@container": "@set"
+    },
+    "requiresHuman": "clm:requiresHuman",
+    "risk": "clm:risk",
+    "isDecisionPoint": "clm:isDecisionPoint",
+    "hasState": {
+      "@id": "clm:hasState",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "initialState": {
+      "@id": "clm:initialState",
+      "@type": "@id"
+    },
+    "terminalStates": {
+      "@id": "clm:terminalStates",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "relatesTo": {
+      "@id": "clm:relatesTo",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "emitsEvent": {
+      "@id": "clm:emitsEvent",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "ownedBy": {
+      "@id": "clm:ownedBy",
+      "@type": "@id"
+    },
+    "from": {
+      "@id": "clm:from",
+      "@type": "@id"
+    },
+    "to": {
+      "@id": "clm:to",
+      "@type": "@id"
+    },
+    "Entity": "clm:Entity",
+    "State": "clm:State",
+    "Operation": "clm:Operation",
+    "Event": "clm:Event"
+  },
+  "@graph": [
+    {
+      "id": "urn:ctxstudio:clm:schema",
+      "type": "schema:Dataset",
+      "name": "Health Insurance Claims",
+      "description": "Context Studio schema for Health Insurance Claims",
+      "schema:version": "1.0",
+      "schema:dateCreated": "2026-09-24"
+    },
+    {
+      "id": "clm:Claimant",
+      "type": "Entity",
+      "name": "Claimant",
+      "description": "Person insured under a policy who files claims",
+      "identityKey": "claimantId",
+      "humanRef": "memberNumber",
+      "attributes": {
+        "fullName": "string",
+        "dateOfBirth": "date",
+        "email": "string",
+        "phone": "string|null"
+      },
+      "invariant": [
+        "memberNumber is unique"
+      ],
+      "relatesTo": [
+        "clm:Policy",
+        "clm:Claim"
+      ],
+      "rels": [
+        {
+          "target": "Policy",
+          "cardinality": "1-n",
+          "label": "holds"
+        },
+        {
+          "target": "Claim",
+          "cardinality": "1-n",
+          "label": "files"
+        }
+      ]
+    },
+    {
+      "id": "clm:Policy",
+      "type": "Entity",
+      "name": "Policy",
+      "description": "Coverage contract that a claim is assessed against",
+      "identityKey": "policyId",
+      "humanRef": "policyNumber",
+      "attributes": {
+        "planCode": "string",
+        "effectiveFrom": "date",
+        "effectiveTo": "date",
+        "deductible": "number",
+        "annualCap": "number"
+      },
+      "invariant": [
+        "effectiveTo > effectiveFrom",
+        "deductible >= 0"
+      ],
+      "relatesTo": [
+        "clm:Claimant"
+      ],
+      "rels": [
+        {
+          "target": "Claimant",
+          "cardinality": "n-1",
+          "label": "heldBy"
+        }
+      ]
+    },
+    {
+      "id": "clm:Claim",
+      "type": "Entity",
+      "name": "Claim",
+      "description": "Request for payment of covered medical costs",
+      "identityKey": "claimId",
+      "humanRef": "claimNumber",
+      "attributes": {
+        "amountClaimed": "number",
+        "incidentDate": "date",
+        "submittedAt": "datetime|null",
+        "status": "DRAFT|SUBMITTED|UNDER_REVIEW|PENDING_INFO|APPROVED|REJECTED|CLOSED"
+      },
+      "invariant": [
+        "amountClaimed > 0",
+        "incidentDate within policy effective window"
+      ],
+      "hasState": [
+        "clm:ClaimDraft",
+        "clm:ClaimSubmitted",
+        "clm:ClaimUnderReview",
+        "clm:ClaimPendingInfo",
+        "clm:ClaimApproved",
+        "clm:ClaimRejected",
+        "clm:ClaimClosed"
+      ],
+      "initialState": "clm:ClaimDraft",
+      "terminalStates": [
+        "clm:ClaimClosed"
+      ],
+      "relatesTo": [
+        "clm:Claimant",
+        "clm:Policy",
+        "clm:Document",
+        "clm:Assessment",
+        "clm:Settlement",
+        "clm:Appeal"
+      ],
+      "rels": [
+        {
+          "target": "Claimant",
+          "cardinality": "n-1",
+          "label": "filedBy"
+        },
+        {
+          "target": "Policy",
+          "cardinality": "n-1",
+          "label": "assessedAgainst"
+        },
+        {
+          "target": "Document",
+          "cardinality": "1-n",
+          "label": "supportedBy"
+        },
+        {
+          "target": "Assessment",
+          "cardinality": "1-1",
+          "label": "reviewedBy"
+        },
+        {
+          "target": "Settlement",
+          "cardinality": "1-1",
+          "label": "settledBy"
+        },
+        {
+          "target": "Appeal",
+          "cardinality": "1-n",
+          "label": "appealedBy"
+        }
+      ],
+      "emitsEvent": [
+        "clm:ClaimApproved",
+        "clm:ClaimClosed",
+        "clm:ClaimRejected",
+        "clm:ClaimSubmitted",
+        "clm:InfoRequested"
+      ]
+    },
+    {
+      "id": "clm:Document",
+      "type": "Entity",
+      "name": "Document",
+      "description": "Evidence attached to a claim, such as an invoice or report",
+      "identityKey": "documentId",
+      "humanRef": "fileName",
+      "attributes": {
+        "kind": "string",
+        "uploadedAt": "datetime",
+        "sizeBytes": "number",
+        "checksum": "string"
+      },
+      "invariant": [
+        "checksum is unique per claim"
+      ],
+      "hasState": [
+        "clm:DocumentUploaded",
+        "clm:DocumentVerified",
+        "clm:DocumentInvalid"
+      ],
+      "initialState": "clm:DocumentUploaded",
+      "terminalStates": [
+        "clm:DocumentVerified",
+        "clm:DocumentInvalid"
+      ],
+      "relatesTo": [
+        "clm:Claim"
+      ],
+      "rels": [
+        {
+          "target": "Claim",
+          "cardinality": "n-1",
+          "label": "attachedTo"
+        }
+      ],
+      "emitsEvent": [
+        "clm:DocumentRejected",
+        "clm:DocumentVerified"
+      ]
+    },
+    {
+      "id": "clm:Assessment",
+      "type": "Entity",
+      "name": "Assessment",
+      "description": "Clinical and financial review of a claim",
+      "identityKey": "assessmentId",
+      "humanRef": "assessmentRef",
+      "attributes": {
+        "assessorId": "string",
+        "coveredAmount": "number|null",
+        "findings": "string|null",
+        "completedAt": "datetime|null"
+      },
+      "invariant": [
+        "coveredAmount <= claim.amountClaimed"
+      ],
+      "hasState": [
+        "clm:AssessmentPending",
+        "clm:AssessmentInProgress",
+        "clm:AssessmentCompleted"
+      ],
+      "initialState": "clm:AssessmentPending",
+      "terminalStates": [
+        "clm:AssessmentCompleted"
+      ],
+      "relatesTo": [
+        "clm:Claim"
+      ],
+      "rels": [
+        {
+          "target": "Claim",
+          "cardinality": "1-1",
+          "label": "assesses"
+        }
+      ],
+      "emitsEvent": [
+        "clm:AssessmentCompleted"
+      ]
+    },
+    {
+      "id": "clm:Settlement",
+      "type": "Entity",
+      "name": "Settlement",
+      "description": "Proposed payout offered to the claimant",
+      "identityKey": "settlementId",
+      "humanRef": "settlementRef",
+      "attributes": {
+        "offerAmount": "number",
+        "offeredAt": "datetime",
+        "respondedAt": "datetime|null"
+      },
+      "invariant": [
+        "offerAmount >= 0"
+      ],
+      "hasState": [
+        "clm:SettlementProposed",
+        "clm:SettlementAccepted",
+        "clm:SettlementDeclined"
+      ],
+      "initialState": "clm:SettlementProposed",
+      "terminalStates": [
+        "clm:SettlementAccepted",
+        "clm:SettlementDeclined"
+      ],
+      "relatesTo": [
+        "clm:Claim",
+        "clm:Payment"
+      ],
+      "rels": [
+        {
+          "target": "Claim",
+          "cardinality": "1-1",
+          "label": "settles"
+        },
+        {
+          "target": "Payment",
+          "cardinality": "1-1",
+          "label": "paidBy"
+        }
+      ],
+      "emitsEvent": [
+        "clm:SettlementAccepted",
+        "clm:SettlementDeclined"
+      ]
+    },
+    {
+      "id": "clm:Payment",
+      "type": "Entity",
+      "name": "Payment",
+      "description": "Disbursement of an accepted settlement",
+      "identityKey": "paymentId",
+      "humanRef": "paymentRef",
+      "attributes": {
+        "amount": "number",
+        "method": "string",
+        "scheduledFor": "date",
+        "executedAt": "datetime|null"
+      },
+      "invariant": [
+        "amount equals settlement.offerAmount"
+      ],
+      "hasState": [
+        "clm:PaymentScheduled",
+        "clm:PaymentPaid",
+        "clm:PaymentFailed"
+      ],
+      "initialState": "clm:PaymentScheduled",
+      "terminalStates": [
+        "clm:PaymentPaid",
+        "clm:PaymentFailed"
+      ],
+      "relatesTo": [
+        "clm:Settlement"
+      ],
+      "rels": [
+        {
+          "target": "Settlement",
+          "cardinality": "1-1",
+          "label": "fulfils"
+        }
+      ],
+      "emitsEvent": [
+        "clm:PaymentExecuted",
+        "clm:PaymentFailed"
+      ]
+    },
+    {
+      "id": "clm:Appeal",
+      "type": "Entity",
+      "name": "Appeal",
+      "description": "Challenge raised against a rejected claim",
+      "identityKey": "appealId",
+      "humanRef": "appealRef",
+      "attributes": {
+        "grounds": "string",
+        "filedAt": "datetime",
+        "decidedAt": "datetime|null"
+      },
+      "invariant": [
+        "filed within 30 days of rejection"
+      ],
+      "hasState": [
+        "clm:AppealFiled",
+        "clm:AppealUnderAppealReview",
+        "clm:AppealUpheld",
+        "clm:AppealOverturned"
+      ],
+      "initialState": "clm:AppealFiled",
+      "terminalStates": [
+        "clm:AppealUpheld",
+        "clm:AppealOverturned"
+      ],
+      "relatesTo": [
+        "clm:Claim"
+      ],
+      "rels": [
+        {
+          "target": "Claim",
+          "cardinality": "n-1",
+          "label": "challenges"
+        }
+      ],
+      "emitsEvent": [
+        "clm:AppealOverturned",
+        "clm:AppealUpheld"
+      ]
+    },
+    {
+      "id": "clm:ClaimDraft",
+      "type": "State",
+      "name": "ClaimDraft",
+      "description": "Claim is being prepared and is not yet visible to the insurer",
+      "ownedBy": "clm:Claim"
+    },
+    {
+      "id": "clm:ClaimSubmitted",
+      "type": "State",
+      "name": "ClaimSubmitted",
+      "description": "Claim has been received and is queued for triage",
+      "ownedBy": "clm:Claim"
+    },
+    {
+      "id": "clm:ClaimUnderReview",
+      "type": "State",
+      "name": "ClaimUnderReview",
+      "description": "Claim is being assessed by an adjuster",
+      "ownedBy": "clm:Claim",
+      "isDecisionPoint": true
+    },
+    {
+      "id": "clm:ClaimPendingInfo",
+      "type": "State",
+      "name": "ClaimPendingInfo",
+      "description": "Claim is paused awaiting further information from the claimant",
+      "ownedBy": "clm:Claim"
+    },
+    {
+      "id": "clm:ClaimApproved",
+      "type": "State",
+      "name": "ClaimApproved",
+      "description": "Claim has been accepted for settlement",
+      "ownedBy": "clm:Claim"
+    },
+    {
+      "id": "clm:ClaimRejected",
+      "type": "State",
+      "name": "ClaimRejected",
+      "description": "Claim has been refused and may be appealed",
+      "ownedBy": "clm:Claim"
+    },
+    {
+      "id": "clm:ClaimClosed",
+      "type": "State",
+      "name": "ClaimClosed",
+      "description": "Claim is finalised and no further action is possible",
+      "ownedBy": "clm:Claim"
+    },
+    {
+      "id": "clm:DocumentUploaded",
+      "type": "State",
+      "name": "DocumentUploaded",
+      "description": "Document received but not yet checked",
+      "ownedBy": "clm:Document",
+      "isDecisionPoint": true
+    },
+    {
+      "id": "clm:DocumentVerified",
+      "type": "State",
+      "name": "DocumentVerified",
+      "description": "Document passed authenticity and completeness checks",
+      "ownedBy": "clm:Document"
+    },
+    {
+      "id": "clm:DocumentInvalid",
+      "type": "State",
+      "name": "DocumentInvalid",
+      "description": "Document failed checks and cannot support the claim",
+      "ownedBy": "clm:Document"
+    },
+    {
+      "id": "clm:AssessmentPending",
+      "type": "State",
+      "name": "AssessmentPending",
+      "description": "Assessment created but not yet started",
+      "ownedBy": "clm:Assessment"
+    },
+    {
+      "id": "clm:AssessmentInProgress",
+      "type": "State",
+      "name": "AssessmentInProgress",
+      "description": "Assessor is actively reviewing the claim",
+      "ownedBy": "clm:Assessment"
+    },
+    {
+      "id": "clm:AssessmentCompleted",
+      "type": "State",
+      "name": "AssessmentCompleted",
+      "description": "Assessment finished with findings recorded",
+      "ownedBy": "clm:Assessment"
+    },
+    {
+      "id": "clm:SettlementProposed",
+      "type": "State",
+      "name": "SettlementProposed",
+      "description": "Settlement offer sent to the claimant",
+      "ownedBy": "clm:Settlement",
+      "isDecisionPoint": true
+    },
+    {
+      "id": "clm:SettlementAccepted",
+      "type": "State",
+      "name": "SettlementAccepted",
+      "description": "Claimant accepted the settlement offer",
+      "ownedBy": "clm:Settlement"
+    },
+    {
+      "id": "clm:SettlementDeclined",
+      "type": "State",
+      "name": "SettlementDeclined",
+      "description": "Claimant refused the settlement offer",
+      "ownedBy": "clm:Settlement"
+    },
+    {
+      "id": "clm:PaymentScheduled",
+      "type": "State",
+      "name": "PaymentScheduled",
+      "description": "Payment queued for the next disbursement run",
+      "ownedBy": "clm:Payment",
+      "isDecisionPoint": true
+    },
+    {
+      "id": "clm:PaymentPaid",
+      "type": "State",
+      "name": "PaymentPaid",
+      "description": "Funds successfully transferred to the claimant",
+      "ownedBy": "clm:Payment"
+    },
+    {
+      "id": "clm:PaymentFailed",
+      "type": "State",
+      "name": "PaymentFailed",
+      "description": "Payment attempt failed and requires intervention",
+      "ownedBy": "clm:Payment"
+    },
+    {
+      "id": "clm:AppealFiled",
+      "type": "State",
+      "name": "AppealFiled",
+      "description": "Appeal lodged and awaiting review",
+      "ownedBy": "clm:Appeal"
+    },
+    {
+      "id": "clm:AppealUnderAppealReview",
+      "type": "State",
+      "name": "AppealUnderAppealReview",
+      "description": "Appeal is being reconsidered by a senior reviewer",
+      "ownedBy": "clm:Appeal",
+      "isDecisionPoint": true
+    },
+    {
+      "id": "clm:AppealUpheld",
+      "type": "State",
+      "name": "AppealUpheld",
+      "description": "Original rejection was confirmed",
+      "ownedBy": "clm:Appeal"
+    },
+    {
+      "id": "clm:AppealOverturned",
+      "type": "State",
+      "name": "AppealOverturned",
+      "description": "Original rejection was reversed",
+      "ownedBy": "clm:Appeal"
+    },
+    {
+      "id": "clm:SubmitClaim",
+      "type": "Operation",
+      "name": "SubmitClaim",
+      "description": "Claimant submits a prepared claim",
+      "ownedBy": "clm:Claim",
+      "from": "clm:ClaimDraft",
+      "to": "clm:ClaimSubmitted",
+      "precondition": [
+        "policy is active on incidentDate",
+        "at least one document uploaded"
+      ],
+      "postcondition": [
+        "claim is queued for triage",
+        "submittedAt is set"
+      ],
+      "performedBy": "Claimant",
+      "usesSystem": [
+        "ClaimDB",
+        "NotificationSvc"
+      ],
+      "risk": "low",
+      "emitsEvent": [
+        "clm:ClaimSubmitted"
+      ]
+    },
+    {
+      "id": "clm:StartReview",
+      "type": "Operation",
+      "name": "StartReview",
+      "description": "Adjuster picks up the claim for assessment",
+      "ownedBy": "clm:Claim",
+      "from": "clm:ClaimSubmitted",
+      "to": "clm:ClaimUnderReview",
+      "precondition": [
+        "all documents verified"
+      ],
+      "postcondition": [
+        "assessment record created"
+      ],
+      "performedBy": "Adjuster",
+      "usesSystem": [
+        "ClaimDB",
+        "AssessmentSvc"
+      ],
+      "risk": "low"
+    },
+    {
+      "id": "clm:RequestMoreInfo",
+      "type": "Operation",
+      "name": "RequestMoreInfo",
+      "description": "Adjuster pauses the claim pending missing evidence",
+      "ownedBy": "clm:Claim",
+      "from": "clm:ClaimUnderReview",
+      "to": "clm:ClaimPendingInfo",
+      "precondition": [
+        "a required document is missing or invalid"
+      ],
+      "postcondition": [
+        "claimant is notified"
+      ],
+      "performedBy": "Adjuster",
+      "usesSystem": [
+        "NotificationSvc"
+      ],
+      "risk": "low",
+      "emitsEvent": [
+        "clm:InfoRequested"
+      ]
+    },
+    {
+      "id": "clm:ResubmitInfo",
+      "type": "Operation",
+      "name": "ResubmitInfo",
+      "description": "Claimant supplies the requested evidence",
+      "ownedBy": "clm:Claim",
+      "from": "clm:ClaimPendingInfo",
+      "to": "clm:ClaimUnderReview",
+      "precondition": [
+        "new document uploaded and verified"
+      ],
+      "postcondition": [
+        "review resumes"
+      ],
+      "performedBy": "Claimant",
+      "usesSystem": [
+        "ClaimDB",
+        "DocumentStore"
+      ],
+      "risk": "low"
+    },
+    {
+      "id": "clm:ApproveClaim",
+      "type": "Operation",
+      "name": "ApproveClaim",
+      "description": "Claim is accepted for settlement",
+      "ownedBy": "clm:Claim",
+      "from": "clm:ClaimUnderReview",
+      "to": "clm:ClaimApproved",
+      "precondition": [
+        "assessment completed",
+        "fraud score below threshold"
+      ],
+      "postcondition": [
+        "settlement may be proposed"
+      ],
+      "performedBy": "Adjuster",
+      "usesSystem": [
+        "ClaimDB",
+        "FraudSvc"
+      ],
+      "requiresHuman": true,
+      "risk": "high",
+      "emitsEvent": [
+        "clm:ClaimApproved"
+      ]
+    },
+    {
+      "id": "clm:RejectClaim",
+      "type": "Operation",
+      "name": "RejectClaim",
+      "description": "Claim is refused with a documented reason",
+      "ownedBy": "clm:Claim",
+      "from": "clm:ClaimUnderReview",
+      "to": "clm:ClaimRejected",
+      "precondition": [
+        "assessment completed",
+        "exclusion or policy breach identified"
+      ],
+      "postcondition": [
+        "appeal window opens"
+      ],
+      "performedBy": "Adjuster",
+      "usesSystem": [
+        "ClaimDB",
+        "NotificationSvc"
+      ],
+      "requiresHuman": true,
+      "risk": "high",
+      "emitsEvent": [
+        "clm:ClaimRejected"
+      ]
+    },
+    {
+      "id": "clm:CloseApproved",
+      "type": "Operation",
+      "name": "CloseApproved",
+      "description": "Approved claim is closed after payment",
+      "ownedBy": "clm:Claim",
+      "from": "clm:ClaimApproved",
+      "to": "clm:ClaimClosed",
+      "precondition": [
+        "payment is Paid"
+      ],
+      "postcondition": [
+        "claim is immutable"
+      ],
+      "performedBy": "System",
+      "usesSystem": [
+        "ClaimDB"
+      ],
+      "risk": "low",
+      "emitsEvent": [
+        "clm:ClaimClosed"
+      ]
+    },
+    {
+      "id": "clm:CloseRejected",
+      "type": "Operation",
+      "name": "CloseRejected",
+      "description": "Rejected claim is closed once the appeal window lapses",
+      "ownedBy": "clm:Claim",
+      "from": "clm:ClaimRejected",
+      "to": "clm:ClaimClosed",
+      "precondition": [
+        "appeal window expired or appeal upheld"
+      ],
+      "postcondition": [
+        "claim is immutable"
+      ],
+      "performedBy": "System",
+      "usesSystem": [
+        "ClaimDB"
+      ],
+      "risk": "medium",
+      "emitsEvent": [
+        "clm:ClaimClosed"
+      ]
+    },
+    {
+      "id": "clm:VerifyDocument",
+      "type": "Operation",
+      "name": "VerifyDocument",
+      "description": "Document passes authenticity checks",
+      "ownedBy": "clm:Document",
+      "from": "clm:DocumentUploaded",
+      "to": "clm:DocumentVerified",
+      "precondition": [
+        "file is readable",
+        "checksum is unique"
+      ],
+      "postcondition": [
+        "document usable as evidence"
+      ],
+      "performedBy": "DocumentBot",
+      "usesSystem": [
+        "DocumentStore",
+        "OCRSvc"
+      ],
+      "risk": "low",
+      "emitsEvent": [
+        "clm:DocumentVerified"
+      ]
+    },
+    {
+      "id": "clm:FlagInvalidDocument",
+      "type": "Operation",
+      "name": "FlagInvalidDocument",
+      "description": "Document fails checks and is rejected",
+      "ownedBy": "clm:Document",
+      "from": "clm:DocumentUploaded",
+      "to": "clm:DocumentInvalid",
+      "precondition": [
+        "file unreadable or duplicate or altered"
+      ],
+      "postcondition": [
+        "claimant asked to re-upload"
+      ],
+      "performedBy": "DocumentBot",
+      "usesSystem": [
+        "DocumentStore",
+        "OCRSvc"
+      ],
+      "risk": "medium",
+      "emitsEvent": [
+        "clm:DocumentRejected"
+      ]
+    },
+    {
+      "id": "clm:StartAssessment",
+      "type": "Operation",
+      "name": "StartAssessment",
+      "description": "Assessor begins clinical and financial review",
+      "ownedBy": "clm:Assessment",
+      "from": "clm:AssessmentPending",
+      "to": "clm:AssessmentInProgress",
+      "precondition": [
+        "claim is UnderReview"
+      ],
+      "postcondition": [
+        "assessor is assigned"
+      ],
+      "performedBy": "Adjuster",
+      "usesSystem": [
+        "AssessmentSvc"
+      ],
+      "risk": "low"
+    },
+    {
+      "id": "clm:CompleteAssessment",
+      "type": "Operation",
+      "name": "CompleteAssessment",
+      "description": "Assessor records findings and covered amount",
+      "ownedBy": "clm:Assessment",
+      "from": "clm:AssessmentInProgress",
+      "to": "clm:AssessmentCompleted",
+      "precondition": [
+        "all evidence reviewed"
+      ],
+      "postcondition": [
+        "coveredAmount is set"
+      ],
+      "performedBy": "Adjuster",
+      "usesSystem": [
+        "AssessmentSvc",
+        "PricingSvc"
+      ],
+      "requiresHuman": true,
+      "risk": "medium",
+      "emitsEvent": [
+        "clm:AssessmentCompleted"
+      ]
+    },
+    {
+      "id": "clm:AcceptSettlement",
+      "type": "Operation",
+      "name": "AcceptSettlement",
+      "description": "Claimant accepts the offer",
+      "ownedBy": "clm:Settlement",
+      "from": "clm:SettlementProposed",
+      "to": "clm:SettlementAccepted",
+      "precondition": [
+        "offer not expired"
+      ],
+      "postcondition": [
+        "payment is scheduled"
+      ],
+      "performedBy": "Claimant",
+      "usesSystem": [
+        "ClaimDB",
+        "NotificationSvc"
+      ],
+      "risk": "low",
+      "emitsEvent": [
+        "clm:SettlementAccepted"
+      ]
+    },
+    {
+      "id": "clm:DeclineSettlement",
+      "type": "Operation",
+      "name": "DeclineSettlement",
+      "description": "Claimant refuses the offer",
+      "ownedBy": "clm:Settlement",
+      "from": "clm:SettlementProposed",
+      "to": "clm:SettlementDeclined",
+      "precondition": [
+        "offer not expired"
+      ],
+      "postcondition": [
+        "claimant may appeal"
+      ],
+      "performedBy": "Claimant",
+      "usesSystem": [
+        "ClaimDB",
+        "NotificationSvc"
+      ],
+      "risk": "medium",
+      "emitsEvent": [
+        "clm:SettlementDeclined"
+      ]
+    },
+    {
+      "id": "clm:ExecutePayment",
+      "type": "Operation",
+      "name": "ExecutePayment",
+      "description": "Funds are transferred to the claimant",
+      "ownedBy": "clm:Payment",
+      "from": "clm:PaymentScheduled",
+      "to": "clm:PaymentPaid",
+      "precondition": [
+        "settlement accepted",
+        "bank details verified"
+      ],
+      "postcondition": [
+        "ledger entry created"
+      ],
+      "performedBy": "System",
+      "usesSystem": [
+        "PaymentGateway",
+        "LedgerSvc"
+      ],
+      "requiresHuman": true,
+      "risk": "high",
+      "emitsEvent": [
+        "clm:PaymentExecuted"
+      ]
+    },
+    {
+      "id": "clm:FailPayment",
+      "type": "Operation",
+      "name": "FailPayment",
+      "description": "Transfer could not be completed",
+      "ownedBy": "clm:Payment",
+      "from": "clm:PaymentScheduled",
+      "to": "clm:PaymentFailed",
+      "precondition": [
+        "gateway rejected the transfer"
+      ],
+      "postcondition": [
+        "operations team is alerted"
+      ],
+      "performedBy": "System",
+      "usesSystem": [
+        "PaymentGateway"
+      ],
+      "risk": "high",
+      "emitsEvent": [
+        "clm:PaymentFailed"
+      ]
+    },
+    {
+      "id": "clm:ReviewAppeal",
+      "type": "Operation",
+      "name": "ReviewAppeal",
+      "description": "Senior reviewer takes up the appeal",
+      "ownedBy": "clm:Appeal",
+      "from": "clm:AppealFiled",
+      "to": "clm:AppealUnderAppealReview",
+      "precondition": [
+        "appeal filed within window"
+      ],
+      "postcondition": [
+        "original assessment reopened"
+      ],
+      "performedBy": "AppealReviewer",
+      "usesSystem": [
+        "ClaimDB",
+        "AssessmentSvc"
+      ],
+      "risk": "medium"
+    },
+    {
+      "id": "clm:UpholdRejection",
+      "type": "Operation",
+      "name": "UpholdRejection",
+      "description": "Original rejection is confirmed",
+      "ownedBy": "clm:Appeal",
+      "from": "clm:AppealUnderAppealReview",
+      "to": "clm:AppealUpheld",
+      "precondition": [
+        "no new material evidence"
+      ],
+      "postcondition": [
+        "claim proceeds to closure"
+      ],
+      "performedBy": "AppealReviewer",
+      "usesSystem": [
+        "ClaimDB",
+        "NotificationSvc"
+      ],
+      "requiresHuman": true,
+      "risk": "high",
+      "emitsEvent": [
+        "clm:AppealUpheld"
+      ]
+    },
+    {
+      "id": "clm:OverturnRejection",
+      "type": "Operation",
+      "name": "OverturnRejection",
+      "description": "Rejection is reversed and the claim reopens",
+      "ownedBy": "clm:Appeal",
+      "from": "clm:AppealUnderAppealReview",
+      "to": "clm:AppealOverturned",
+      "precondition": [
+        "new material evidence accepted"
+      ],
+      "postcondition": [
+        "claim returns to review"
+      ],
+      "performedBy": "AppealReviewer",
+      "usesSystem": [
+        "ClaimDB",
+        "AssessmentSvc"
+      ],
+      "requiresHuman": true,
+      "risk": "high",
+      "emitsEvent": [
+        "clm:AppealOverturned"
+      ]
+    },
+    {
+      "id": "clm:AppealOverturned",
+      "type": "Event",
+      "name": "AppealOverturned",
+      "description": "Emitted by OverturnRejection"
+    },
+    {
+      "id": "clm:AppealUpheld",
+      "type": "Event",
+      "name": "AppealUpheld",
+      "description": "Emitted by UpholdRejection"
+    },
+    {
+      "id": "clm:AssessmentCompleted",
+      "type": "Event",
+      "name": "AssessmentCompleted",
+      "description": "Emitted by CompleteAssessment"
+    },
+    {
+      "id": "clm:ClaimApproved",
+      "type": "Event",
+      "name": "ClaimApproved",
+      "description": "Emitted by ApproveClaim"
+    },
+    {
+      "id": "clm:ClaimClosed",
+      "type": "Event",
+      "name": "ClaimClosed",
+      "description": "Emitted by CloseApproved, CloseRejected"
+    },
+    {
+      "id": "clm:ClaimRejected",
+      "type": "Event",
+      "name": "ClaimRejected",
+      "description": "Emitted by RejectClaim"
+    },
+    {
+      "id": "clm:ClaimSubmitted",
+      "type": "Event",
+      "name": "ClaimSubmitted",
+      "description": "Emitted by SubmitClaim"
+    },
+    {
+      "id": "clm:DocumentRejected",
+      "type": "Event",
+      "name": "DocumentRejected",
+      "description": "Emitted by FlagInvalidDocument"
+    },
+    {
+      "id": "clm:DocumentVerified",
+      "type": "Event",
+      "name": "DocumentVerified",
+      "description": "Emitted by VerifyDocument"
+    },
+    {
+      "id": "clm:InfoRequested",
+      "type": "Event",
+      "name": "InfoRequested",
+      "description": "Emitted by RequestMoreInfo"
+    },
+    {
+      "id": "clm:PaymentExecuted",
+      "type": "Event",
+      "name": "PaymentExecuted",
+      "description": "Emitted by ExecutePayment"
+    },
+    {
+      "id": "clm:PaymentFailed",
+      "type": "Event",
+      "name": "PaymentFailed",
+      "description": "Emitted by FailPayment"
+    },
+    {
+      "id": "clm:SettlementAccepted",
+      "type": "Event",
+      "name": "SettlementAccepted",
+      "description": "Emitted by AcceptSettlement"
+    },
+    {
+      "id": "clm:SettlementDeclined",
+      "type": "Event",
+      "name": "SettlementDeclined",
+      "description": "Emitted by DeclineSettlement"
+    }
+  ]
+}

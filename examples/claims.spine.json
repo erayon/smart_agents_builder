@@ -1,0 +1,175 @@
+{
+"ns":"clm","title":"Health Insurance Claims","v":"1.0",
+"E":[
+{"n":"Claimant","d":"Person insured under a policy who files claims","k":"claimantId","h":"memberNumber",
+ "a":{"fullName":"string","dateOfBirth":"date","email":"string","phone":"string|null"},
+ "inv":["memberNumber is unique"],
+ "r":[["Policy","1-n","holds"],["Claim","1-n","files"]]},
+
+{"n":"Policy","d":"Coverage contract that a claim is assessed against","k":"policyId","h":"policyNumber",
+ "a":{"planCode":"string","effectiveFrom":"date","effectiveTo":"date","deductible":"number","annualCap":"number"},
+ "inv":["effectiveTo > effectiveFrom","deductible >= 0"],
+ "r":[["Claimant","n-1","heldBy"]]},
+
+{"n":"Claim","d":"Request for payment of covered medical costs","k":"claimId","h":"claimNumber",
+ "a":{"amountClaimed":"number","incidentDate":"date","submittedAt":"datetime|null","status":"DRAFT|SUBMITTED|UNDER_REVIEW|PENDING_INFO|APPROVED|REJECTED|CLOSED"},
+ "inv":["amountClaimed > 0","incidentDate within policy effective window"],
+ "s":["Draft","Submitted","UnderReview","PendingInfo","Approved","Rejected","Closed"],
+ "s0":"Draft","sT":["Closed"],
+ "r":[["Claimant","n-1","filedBy"],["Policy","n-1","assessedAgainst"],["Document","1-n","supportedBy"],["Assessment","1-1","reviewedBy"],["Settlement","1-1","settledBy"],["Appeal","1-n","appealedBy"]]},
+
+{"n":"Document","d":"Evidence attached to a claim, such as an invoice or report","k":"documentId","h":"fileName",
+ "a":{"kind":"string","uploadedAt":"datetime","sizeBytes":"number","checksum":"string"},
+ "inv":["checksum is unique per claim"],
+ "s":["Uploaded","Verified","Invalid"],
+ "s0":"Uploaded","sT":["Verified","Invalid"],
+ "r":[["Claim","n-1","attachedTo"]]},
+
+{"n":"Assessment","d":"Clinical and financial review of a claim","k":"assessmentId","h":"assessmentRef",
+ "a":{"assessorId":"string","coveredAmount":"number|null","findings":"string|null","completedAt":"datetime|null"},
+ "inv":["coveredAmount <= claim.amountClaimed"],
+ "s":["Pending","InProgress","Completed"],
+ "s0":"Pending","sT":["Completed"],
+ "r":[["Claim","1-1","assesses"]]},
+
+{"n":"Settlement","d":"Proposed payout offered to the claimant","k":"settlementId","h":"settlementRef",
+ "a":{"offerAmount":"number","offeredAt":"datetime","respondedAt":"datetime|null"},
+ "inv":["offerAmount >= 0"],
+ "s":["Proposed","Accepted","Declined"],
+ "s0":"Proposed","sT":["Accepted","Declined"],
+ "r":[["Claim","1-1","settles"],["Payment","1-1","paidBy"]]},
+
+{"n":"Payment","d":"Disbursement of an accepted settlement","k":"paymentId","h":"paymentRef",
+ "a":{"amount":"number","method":"string","scheduledFor":"date","executedAt":"datetime|null"},
+ "inv":["amount equals settlement.offerAmount"],
+ "s":["Scheduled","Paid","Failed"],
+ "s0":"Scheduled","sT":["Paid","Failed"],
+ "r":[["Settlement","1-1","fulfils"]]},
+
+{"n":"Appeal","d":"Challenge raised against a rejected claim","k":"appealId","h":"appealRef",
+ "a":{"grounds":"string","filedAt":"datetime","decidedAt":"datetime|null"},
+ "inv":["filed within 30 days of rejection"],
+ "s":["Filed","UnderAppealReview","Upheld","Overturned"],
+ "s0":"Filed","sT":["Upheld","Overturned"],
+ "r":[["Claim","n-1","challenges"]]}
+],
+
+"S":{
+"Draft":"Claim is being prepared and is not yet visible to the insurer",
+"Submitted":"Claim has been received and is queued for triage",
+"UnderReview":"Claim is being assessed by an adjuster",
+"PendingInfo":"Claim is paused awaiting further information from the claimant",
+"Approved":"Claim has been accepted for settlement",
+"Rejected":"Claim has been refused and may be appealed",
+"Closed":"Claim is finalised and no further action is possible",
+"Uploaded":"Document received but not yet checked",
+"Verified":"Document passed authenticity and completeness checks",
+"Invalid":"Document failed checks and cannot support the claim",
+"Pending":"Assessment created but not yet started",
+"InProgress":"Assessor is actively reviewing the claim",
+"Completed":"Assessment finished with findings recorded",
+"Proposed":"Settlement offer sent to the claimant",
+"Accepted":"Claimant accepted the settlement offer",
+"Declined":"Claimant refused the settlement offer",
+"Scheduled":"Payment queued for the next disbursement run",
+"Paid":"Funds successfully transferred to the claimant",
+"Failed":"Payment attempt failed and requires intervention",
+"Filed":"Appeal lodged and awaiting review",
+"UnderAppealReview":"Appeal is being reconsidered by a senior reviewer",
+"Upheld":"Original rejection was confirmed",
+"Overturned":"Original rejection was reversed"
+},
+
+"O":[
+{"n":"SubmitClaim","e":"Claim","f":"Draft","t":"Submitted","d":"Claimant submits a prepared claim",
+ "by":"Claimant","sys":["ClaimDB","NotificationSvc"],
+ "pre":["policy is active on incidentDate","at least one document uploaded"],
+ "post":["claim is queued for triage","submittedAt is set"],
+ "emit":["ClaimSubmitted"],"risk":"low"},
+
+{"n":"StartReview","e":"Claim","f":"Submitted","t":"UnderReview","d":"Adjuster picks up the claim for assessment",
+ "by":"Adjuster","sys":["ClaimDB","AssessmentSvc"],
+ "pre":["all documents verified"],"post":["assessment record created"],"risk":"low"},
+
+{"n":"RequestMoreInfo","e":"Claim","f":"UnderReview","t":"PendingInfo","d":"Adjuster pauses the claim pending missing evidence",
+ "by":"Adjuster","sys":["NotificationSvc"],
+ "pre":["a required document is missing or invalid"],"post":["claimant is notified"],
+ "emit":["InfoRequested"],"risk":"low"},
+
+{"n":"ResubmitInfo","e":"Claim","f":"PendingInfo","t":"UnderReview","d":"Claimant supplies the requested evidence",
+ "by":"Claimant","sys":["ClaimDB","DocumentStore"],
+ "pre":["new document uploaded and verified"],"post":["review resumes"],"risk":"low"},
+
+{"n":"ApproveClaim","e":"Claim","f":"UnderReview","t":"Approved","d":"Claim is accepted for settlement",
+ "by":"Adjuster","sys":["ClaimDB","FraudSvc"],
+ "pre":["assessment completed","fraud score below threshold"],"post":["settlement may be proposed"],
+ "emit":["ClaimApproved"],"hitl":true,"risk":"high"},
+
+{"n":"RejectClaim","e":"Claim","f":"UnderReview","t":"Rejected","d":"Claim is refused with a documented reason",
+ "by":"Adjuster","sys":["ClaimDB","NotificationSvc"],
+ "pre":["assessment completed","exclusion or policy breach identified"],"post":["appeal window opens"],
+ "emit":["ClaimRejected"],"hitl":true,"risk":"high"},
+
+{"n":"CloseApproved","e":"Claim","f":"Approved","t":"Closed","d":"Approved claim is closed after payment",
+ "by":"System","sys":["ClaimDB"],
+ "pre":["payment is Paid"],"post":["claim is immutable"],"emit":["ClaimClosed"],"risk":"low"},
+
+{"n":"CloseRejected","e":"Claim","f":"Rejected","t":"Closed","d":"Rejected claim is closed once the appeal window lapses",
+ "by":"System","sys":["ClaimDB"],
+ "pre":["appeal window expired or appeal upheld"],"post":["claim is immutable"],
+ "emit":["ClaimClosed"],"risk":"medium"},
+
+{"n":"VerifyDocument","e":"Document","f":"Uploaded","t":"Verified","d":"Document passes authenticity checks",
+ "by":"DocumentBot","sys":["DocumentStore","OCRSvc"],
+ "pre":["file is readable","checksum is unique"],"post":["document usable as evidence"],
+ "emit":["DocumentVerified"],"risk":"low"},
+
+{"n":"FlagInvalidDocument","e":"Document","f":"Uploaded","t":"Invalid","d":"Document fails checks and is rejected",
+ "by":"DocumentBot","sys":["DocumentStore","OCRSvc"],
+ "pre":["file unreadable or duplicate or altered"],"post":["claimant asked to re-upload"],
+ "emit":["DocumentRejected"],"risk":"medium"},
+
+{"n":"StartAssessment","e":"Assessment","f":"Pending","t":"InProgress","d":"Assessor begins clinical and financial review",
+ "by":"Adjuster","sys":["AssessmentSvc"],
+ "pre":["claim is UnderReview"],"post":["assessor is assigned"],"risk":"low"},
+
+{"n":"CompleteAssessment","e":"Assessment","f":"InProgress","t":"Completed","d":"Assessor records findings and covered amount",
+ "by":"Adjuster","sys":["AssessmentSvc","PricingSvc"],
+ "pre":["all evidence reviewed"],"post":["coveredAmount is set"],
+ "emit":["AssessmentCompleted"],"hitl":true,"risk":"medium"},
+
+{"n":"AcceptSettlement","e":"Settlement","f":"Proposed","t":"Accepted","d":"Claimant accepts the offer",
+ "by":"Claimant","sys":["ClaimDB","NotificationSvc"],
+ "pre":["offer not expired"],"post":["payment is scheduled"],
+ "emit":["SettlementAccepted"],"risk":"low"},
+
+{"n":"DeclineSettlement","e":"Settlement","f":"Proposed","t":"Declined","d":"Claimant refuses the offer",
+ "by":"Claimant","sys":["ClaimDB","NotificationSvc"],
+ "pre":["offer not expired"],"post":["claimant may appeal"],
+ "emit":["SettlementDeclined"],"risk":"medium"},
+
+{"n":"ExecutePayment","e":"Payment","f":"Scheduled","t":"Paid","d":"Funds are transferred to the claimant",
+ "by":"System","sys":["PaymentGateway","LedgerSvc"],
+ "pre":["settlement accepted","bank details verified"],"post":["ledger entry created"],
+ "emit":["PaymentExecuted"],"hitl":true,"risk":"high"},
+
+{"n":"FailPayment","e":"Payment","f":"Scheduled","t":"Failed","d":"Transfer could not be completed",
+ "by":"System","sys":["PaymentGateway"],
+ "pre":["gateway rejected the transfer"],"post":["operations team is alerted"],
+ "emit":["PaymentFailed"],"risk":"high"},
+
+{"n":"ReviewAppeal","e":"Appeal","f":"Filed","t":"UnderAppealReview","d":"Senior reviewer takes up the appeal",
+ "by":"AppealReviewer","sys":["ClaimDB","AssessmentSvc"],
+ "pre":["appeal filed within window"],"post":["original assessment reopened"],"risk":"medium"},
+
+{"n":"UpholdRejection","e":"Appeal","f":"UnderAppealReview","t":"Upheld","d":"Original rejection is confirmed",
+ "by":"AppealReviewer","sys":["ClaimDB","NotificationSvc"],
+ "pre":["no new material evidence"],"post":["claim proceeds to closure"],
+ "emit":["AppealUpheld"],"hitl":true,"risk":"high"},
+
+{"n":"OverturnRejection","e":"Appeal","f":"UnderAppealReview","t":"Overturned","d":"Rejection is reversed and the claim reopens",
+ "by":"AppealReviewer","sys":["ClaimDB","AssessmentSvc"],
+ "pre":["new material evidence accepted"],"post":["claim returns to review"],
+ "emit":["AppealOverturned"],"hitl":true,"risk":"high"}
+]
+}

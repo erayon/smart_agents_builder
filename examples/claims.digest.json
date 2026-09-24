@@ -1,0 +1,526 @@
+{
+ "domain": "Health Insurance Claims",
+ "ns": "clm",
+ "counts": {
+  "entities": 8,
+  "states": 23,
+  "operations": 19,
+  "decisionPoints": 5,
+  "actors": 5,
+  "systems": 9,
+  "humanInLoopOps": 6,
+  "highRiskOps": 6
+ },
+ "entities": [
+  {
+   "n": "Claimant",
+   "lifecycle": false,
+   "states": 0,
+   "relatesTo": [
+    "Policy",
+    "Claim"
+   ]
+  },
+  {
+   "n": "Policy",
+   "lifecycle": false,
+   "states": 0,
+   "relatesTo": [
+    "Claimant"
+   ]
+  },
+  {
+   "n": "Claim",
+   "lifecycle": true,
+   "states": 7,
+   "relatesTo": [
+    "Claimant",
+    "Policy",
+    "Document",
+    "Assessment",
+    "Settlement",
+    "Appeal"
+   ]
+  },
+  {
+   "n": "Document",
+   "lifecycle": true,
+   "states": 3,
+   "relatesTo": [
+    "Claim"
+   ]
+  },
+  {
+   "n": "Assessment",
+   "lifecycle": true,
+   "states": 3,
+   "relatesTo": [
+    "Claim"
+   ]
+  },
+  {
+   "n": "Settlement",
+   "lifecycle": true,
+   "states": 3,
+   "relatesTo": [
+    "Claim",
+    "Payment"
+   ]
+  },
+  {
+   "n": "Payment",
+   "lifecycle": true,
+   "states": 3,
+   "relatesTo": [
+    "Settlement"
+   ]
+  },
+  {
+   "n": "Appeal",
+   "lifecycle": true,
+   "states": 4,
+   "relatesTo": [
+    "Claim"
+   ]
+  }
+ ],
+ "operations": [
+  {
+   "n": "SubmitClaim",
+   "e": "Claim",
+   "f": "Draft",
+   "t": "Submitted",
+   "by": "Claimant",
+   "sys": [
+    "ClaimDB",
+    "NotificationSvc"
+   ],
+   "hitl": false,
+   "risk": "low"
+  },
+  {
+   "n": "StartReview",
+   "e": "Claim",
+   "f": "Submitted",
+   "t": "UnderReview",
+   "by": "Adjuster",
+   "sys": [
+    "ClaimDB",
+    "AssessmentSvc"
+   ],
+   "hitl": false,
+   "risk": "low"
+  },
+  {
+   "n": "RequestMoreInfo",
+   "e": "Claim",
+   "f": "UnderReview",
+   "t": "PendingInfo",
+   "by": "Adjuster",
+   "sys": [
+    "NotificationSvc"
+   ],
+   "hitl": false,
+   "risk": "low"
+  },
+  {
+   "n": "ResubmitInfo",
+   "e": "Claim",
+   "f": "PendingInfo",
+   "t": "UnderReview",
+   "by": "Claimant",
+   "sys": [
+    "ClaimDB",
+    "DocumentStore"
+   ],
+   "hitl": false,
+   "risk": "low"
+  },
+  {
+   "n": "ApproveClaim",
+   "e": "Claim",
+   "f": "UnderReview",
+   "t": "Approved",
+   "by": "Adjuster",
+   "sys": [
+    "ClaimDB",
+    "FraudSvc"
+   ],
+   "hitl": true,
+   "risk": "high"
+  },
+  {
+   "n": "RejectClaim",
+   "e": "Claim",
+   "f": "UnderReview",
+   "t": "Rejected",
+   "by": "Adjuster",
+   "sys": [
+    "ClaimDB",
+    "NotificationSvc"
+   ],
+   "hitl": true,
+   "risk": "high"
+  },
+  {
+   "n": "CloseApproved",
+   "e": "Claim",
+   "f": "Approved",
+   "t": "Closed",
+   "by": "System",
+   "sys": [
+    "ClaimDB"
+   ],
+   "hitl": false,
+   "risk": "low"
+  },
+  {
+   "n": "CloseRejected",
+   "e": "Claim",
+   "f": "Rejected",
+   "t": "Closed",
+   "by": "System",
+   "sys": [
+    "ClaimDB"
+   ],
+   "hitl": false,
+   "risk": "medium"
+  },
+  {
+   "n": "VerifyDocument",
+   "e": "Document",
+   "f": "Uploaded",
+   "t": "Verified",
+   "by": "DocumentBot",
+   "sys": [
+    "DocumentStore",
+    "OCRSvc"
+   ],
+   "hitl": false,
+   "risk": "low"
+  },
+  {
+   "n": "FlagInvalidDocument",
+   "e": "Document",
+   "f": "Uploaded",
+   "t": "Invalid",
+   "by": "DocumentBot",
+   "sys": [
+    "DocumentStore",
+    "OCRSvc"
+   ],
+   "hitl": false,
+   "risk": "medium"
+  },
+  {
+   "n": "StartAssessment",
+   "e": "Assessment",
+   "f": "Pending",
+   "t": "InProgress",
+   "by": "Adjuster",
+   "sys": [
+    "AssessmentSvc"
+   ],
+   "hitl": false,
+   "risk": "low"
+  },
+  {
+   "n": "CompleteAssessment",
+   "e": "Assessment",
+   "f": "InProgress",
+   "t": "Completed",
+   "by": "Adjuster",
+   "sys": [
+    "AssessmentSvc",
+    "PricingSvc"
+   ],
+   "hitl": true,
+   "risk": "medium"
+  },
+  {
+   "n": "AcceptSettlement",
+   "e": "Settlement",
+   "f": "Proposed",
+   "t": "Accepted",
+   "by": "Claimant",
+   "sys": [
+    "ClaimDB",
+    "NotificationSvc"
+   ],
+   "hitl": false,
+   "risk": "low"
+  },
+  {
+   "n": "DeclineSettlement",
+   "e": "Settlement",
+   "f": "Proposed",
+   "t": "Declined",
+   "by": "Claimant",
+   "sys": [
+    "ClaimDB",
+    "NotificationSvc"
+   ],
+   "hitl": false,
+   "risk": "medium"
+  },
+  {
+   "n": "ExecutePayment",
+   "e": "Payment",
+   "f": "Scheduled",
+   "t": "Paid",
+   "by": "System",
+   "sys": [
+    "PaymentGateway",
+    "LedgerSvc"
+   ],
+   "hitl": true,
+   "risk": "high"
+  },
+  {
+   "n": "FailPayment",
+   "e": "Payment",
+   "f": "Scheduled",
+   "t": "Failed",
+   "by": "System",
+   "sys": [
+    "PaymentGateway"
+   ],
+   "hitl": false,
+   "risk": "high"
+  },
+  {
+   "n": "ReviewAppeal",
+   "e": "Appeal",
+   "f": "Filed",
+   "t": "UnderAppealReview",
+   "by": "AppealReviewer",
+   "sys": [
+    "ClaimDB",
+    "AssessmentSvc"
+   ],
+   "hitl": false,
+   "risk": "medium"
+  },
+  {
+   "n": "UpholdRejection",
+   "e": "Appeal",
+   "f": "UnderAppealReview",
+   "t": "Upheld",
+   "by": "AppealReviewer",
+   "sys": [
+    "ClaimDB",
+    "NotificationSvc"
+   ],
+   "hitl": true,
+   "risk": "high"
+  },
+  {
+   "n": "OverturnRejection",
+   "e": "Appeal",
+   "f": "UnderAppealReview",
+   "t": "Overturned",
+   "by": "AppealReviewer",
+   "sys": [
+    "ClaimDB",
+    "AssessmentSvc"
+   ],
+   "hitl": true,
+   "risk": "high"
+  }
+ ],
+ "decisionPoints": [
+  {
+   "state": "ClaimUnderReview",
+   "entity": "Claim",
+   "branches": [
+    {
+     "op": "RequestMoreInfo",
+     "to": "ClaimPendingInfo"
+    },
+    {
+     "op": "ApproveClaim",
+     "to": "ClaimApproved"
+    },
+    {
+     "op": "RejectClaim",
+     "to": "ClaimRejected"
+    }
+   ]
+  },
+  {
+   "state": "DocumentUploaded",
+   "entity": "Document",
+   "branches": [
+    {
+     "op": "VerifyDocument",
+     "to": "DocumentVerified"
+    },
+    {
+     "op": "FlagInvalidDocument",
+     "to": "DocumentInvalid"
+    }
+   ]
+  },
+  {
+   "state": "SettlementProposed",
+   "entity": "Settlement",
+   "branches": [
+    {
+     "op": "AcceptSettlement",
+     "to": "SettlementAccepted"
+    },
+    {
+     "op": "DeclineSettlement",
+     "to": "SettlementDeclined"
+    }
+   ]
+  },
+  {
+   "state": "PaymentScheduled",
+   "entity": "Payment",
+   "branches": [
+    {
+     "op": "ExecutePayment",
+     "to": "PaymentPaid"
+    },
+    {
+     "op": "FailPayment",
+     "to": "PaymentFailed"
+    }
+   ]
+  },
+  {
+   "state": "AppealUnderAppealReview",
+   "entity": "Appeal",
+   "branches": [
+    {
+     "op": "UpholdRejection",
+     "to": "AppealUpheld"
+    },
+    {
+     "op": "OverturnRejection",
+     "to": "AppealOverturned"
+    }
+   ]
+  }
+ ],
+ "cohesion": {
+  "byEntity": {
+   "Claim": [
+    "SubmitClaim",
+    "StartReview",
+    "RequestMoreInfo",
+    "ResubmitInfo",
+    "ApproveClaim",
+    "RejectClaim",
+    "CloseApproved",
+    "CloseRejected"
+   ],
+   "Document": [
+    "VerifyDocument",
+    "FlagInvalidDocument"
+   ],
+   "Assessment": [
+    "StartAssessment",
+    "CompleteAssessment"
+   ],
+   "Settlement": [
+    "AcceptSettlement",
+    "DeclineSettlement"
+   ],
+   "Payment": [
+    "ExecutePayment",
+    "FailPayment"
+   ],
+   "Appeal": [
+    "ReviewAppeal",
+    "UpholdRejection",
+    "OverturnRejection"
+   ]
+  },
+  "byActor": {
+   "Claimant": [
+    "SubmitClaim",
+    "ResubmitInfo",
+    "AcceptSettlement",
+    "DeclineSettlement"
+   ],
+   "Adjuster": [
+    "StartReview",
+    "RequestMoreInfo",
+    "ApproveClaim",
+    "RejectClaim",
+    "StartAssessment",
+    "CompleteAssessment"
+   ],
+   "System": [
+    "CloseApproved",
+    "CloseRejected",
+    "ExecutePayment",
+    "FailPayment"
+   ],
+   "DocumentBot": [
+    "VerifyDocument",
+    "FlagInvalidDocument"
+   ],
+   "AppealReviewer": [
+    "ReviewAppeal",
+    "UpholdRejection",
+    "OverturnRejection"
+   ]
+  },
+  "bySystem": {
+   "ClaimDB": [
+    "SubmitClaim",
+    "StartReview",
+    "ResubmitInfo",
+    "ApproveClaim",
+    "RejectClaim",
+    "CloseApproved",
+    "CloseRejected",
+    "AcceptSettlement",
+    "DeclineSettlement",
+    "ReviewAppeal",
+    "UpholdRejection",
+    "OverturnRejection"
+   ],
+   "NotificationSvc": [
+    "SubmitClaim",
+    "RequestMoreInfo",
+    "RejectClaim",
+    "AcceptSettlement",
+    "DeclineSettlement",
+    "UpholdRejection"
+   ],
+   "AssessmentSvc": [
+    "StartReview",
+    "StartAssessment",
+    "CompleteAssessment",
+    "ReviewAppeal",
+    "OverturnRejection"
+   ],
+   "DocumentStore": [
+    "ResubmitInfo",
+    "VerifyDocument",
+    "FlagInvalidDocument"
+   ],
+   "FraudSvc": [
+    "ApproveClaim"
+   ],
+   "OCRSvc": [
+    "VerifyDocument",
+    "FlagInvalidDocument"
+   ],
+   "PricingSvc": [
+    "CompleteAssessment"
+   ],
+   "PaymentGateway": [
+    "ExecutePayment",
+    "FailPayment"
+   ],
+   "LedgerSvc": [
+    "ExecutePayment"
+   ]
+  }
+ }
+}

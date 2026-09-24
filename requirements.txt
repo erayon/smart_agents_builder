@@ -1,0 +1,13 @@
+# core
+langchain-core>=0.3
+langchain>=0.3
+python-dotenv>=1.0
+jsonschema>=4.0
+pyld>=2.0
+
+# providers - install only the ones you use
+langchain-anthropic>=0.3
+langchain-openai>=0.3
+langchain-xai>=0.2
+langchain-groq>=0.2
+langchain-google-genai>=2.0
