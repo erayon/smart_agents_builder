@@ -1,335 +1,271 @@
 # smart_agents_builder
 
-Two-stage pipeline: business domain text → Context Studio schema → LangGraph agent topology.
+Plain-English business brief in, a working agentic-platform project out.
 
 ```
-domain text ──▶ [LLM #1: 01_schema_builder_v4] ──▶ spine.json
-                                                      │
-                                    compile.py (deterministic, 0 tokens)
-                                                      │
-                        ┌─────────────────────────────┼──────────────────────────┐
-                        ▼                             ▼                          ▼
-                 schema.jsonld               validation report            digest.json
-              (Context Studio)          (reachability / liveness)              │
-                                                                               ▼
-                                                        [LLM #2: 02_agent_planner] ──▶ LangGraph topology
+brief ──▶ [LLM] ──▶ spine ──▶ [compiler] ──┬──▶ schema.jsonld   domain graph
+                                           ├──▶ report          reachability, deadlocks
+                                           └──▶ digest ──▶ [LLM] ──▶ topology
+                                                                        │
+                                                                   [compiler]
+                                                                        │
+                                                              a project folder
 ```
 
-## Why a spine instead of direct JSON-LD
+Two model calls. Everything else is deterministic Python: the compilers, both
+validators, the code generators and the scaffolder. That split is what makes
+the pipeline cheap, checkable and runnable without an API key.
 
-The v3.2 assistant made the model generate `@context`, every `clm:` prefix,
-`"type":"State"` on every node, and the pretty-printing — all of it
-deterministic constants. Measured on the same 8-entity claims domain:
+This repo is the **builder**. The product is each folder it generates, which is
+a self-contained project with its own `CLAUDE.md`, its own git history, and no
+dependency on this repo at runtime.
 
-| artifact | ~tokens | who pays |
-|---|---|---|
-| spine.json — **the model writes this** | **2,855** | model |
-| schema.jsonld — compiled | 8,277 | free |
-| digest.json — stage 2 reads this | 2,399 | free |
-
-**66% fewer output tokens** for identical content, and stage 2 reads a 2.4k
-digest instead of an 8.3k JSON-LD blob. The v3.2 prompt shrank from 7.3k to
-4.2k chars too, since the compiler owns the format.
+---
 
 ## Two ways to run it
 
-**With Claude Code — no API key.** The only steps that need a model are
-authoring the spine and planning the topology, and Claude Code can do both.
-Everything else is deterministic Python.
+### With Claude Code — no API key
+
+Only spine authoring and topology planning need a model, and Claude Code does
+both through a skill and two subagents.
 
 ```
-/build-platform "we need a platform for processing supplier invoices" ./out/invoices
-  ... domain modeller runs, repairs until valid, then STOPS
-  ... you review the model in the viewer, edit schema/spine.json if needed
-/build-platform continue ./out/invoices
-  ... agent architect plans the topology, scaffolds the project, git commits
+/build-platform health-claims-assistant-brief.md ~/platforms/health-claims
+  domain modeller runs, repairs until valid, then STOPS
+
+  you review: open the viewer, or edit schema/spine.json
+
+/build-platform continue ~/platforms/health-claims
+  agent architect plans the topology, shows you the split, then scaffolds
 ```
 
-The output is a self-contained project with its own `CLAUDE.md`, so you can
-`cd` into it and keep working there in a fresh session. See
-`.claude/skills/build-platform/SKILL.md`.
+**Why it stops.** The validator proves a model is *well-formed*. It cannot
+prove it is *true*. Nothing in a brief says claims can be withdrawn, or that a
+technician can fall ill mid-visit — that lives in your head, and this is the
+cheapest moment to add it. On a real 368-word brief the modeller reported **ten
+assumptions it had to make** that the brief did not settle, several of which
+were business decisions with money attached. All ten passed validation.
 
-Why it stops for review: the validator proves a model is **well-formed**. It
-cannot prove it is **true**. Nothing in a brief says claims can be withdrawn
-or that payments over a threshold need two approvers - that lives in your
-head, and this is the cheapest moment to add it.
+### With an API key — CI, batch, colleagues
 
-**With an API key.** Same compilers, for CI, batch runs and colleagues who do
-not use Claude Code. See Quickstart below.
+```bash
+python -m builder "a hospital admits patients, assigns beds, discharges them" -p groq
+python -m builder plan out/hospital.digest.json -p groq
+```
+
+Same compilers. Providers: Anthropic, xAI (Grok), OpenAI, Google, Groq, Ollama,
+and any OpenAI-compatible endpoint.
+
+> xAI's **Grok** (`XAI_API_KEY`, `-p xai`) and the **Groq** inference service
+> (`GROQ_API_KEY`, `-p groq`) are different companies. Both are supported.
+
+---
 
 ## Quickstart
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cp .env.example .env          # add at least one API key
+cp .env.example .env                      # only needed for the API path
 .venv/bin/python -m builder --list-providers
-
-.venv/bin/python -m builder "a hospital admits patients, assigns them beds, \
-  runs tests, and discharges them" --provider xai
+.venv/bin/python tests/test_loop.py       # offline, no key, no network
 ```
 
-Writes `out/<slug>.spine.json`, `.jsonld` and `.digest.json`.
+---
 
-### Providers
+## What gets generated
 
-`anthropic` (Claude) · `xai` (**Grok**) · `openai` · `google` (Gemini) ·
-`groq` · `ollama` (local) · `openai_compat` (OpenRouter / DeepSeek / Together /
-vLLM). `--provider auto` picks the first one that has both a key and its
-package installed.
+```
+<project>/
+  PROBLEM.md            the brief, verbatim              source of truth
+  schema/
+    spine.json          the domain model                 source of truth
+    schema.jsonld       Context Studio graph             generated
+    digest.json         planner input                    generated
+  topology.json         the agent plan                   source of truth
+  orchestrator/
+    pipeline.py         StateGraph, one node per unit    generated
+    state.py            PipelineState, typed             generated
+    models.py           one payload model per entity     generated
+  agents/<id>.py        SYSTEM_PROMPT + handle()         yours
+  functions/<id>.py     deterministic, no model          yours
+  tools/<system>.py     one client per system            yours
+  tests/                smoke test
+  viewer/               open in a browser
+  CLAUDE.md             briefs the next session
+  README.md             for humans
+```
 
-> xAI's **Grok** (`XAI_API_KEY`, `--provider xai`) and the **Groq** inference
-> service (`GROQ_API_KEY`, `--provider groq`) are different companies with
-> confusingly similar names. Both are supported.
+### Three tiers, kept apart
 
-Default model ids live in `builder/providers.py` and are overridable with
-`--model` or `<PROVIDER>_MODEL` in `.env`. Check them against your provider's
-current catalogue.
+| tier | rule |
+|---|---|
+| **source of truth** | you edit these; everything else derives from them |
+| **generated** | never hand-edit — regenerate |
+| **yours** | written once if missing, **never** overwritten |
 
-### Two modes
+That boundary is what makes the pipeline survive contact with real work. Change
+the business, edit the spine, regenerate: `orchestrator/` is rewritten and your
+`agents/`, `functions/` and `tools/` implementations are untouched. Verified by
+doing it, not by asserting it.
 
-| mode | how it works | when |
+Changing the agent split is pure codegen — **no model call**, seconds.
+
+---
+
+## Granularity
+
+| | `--granularity agent` (default) | `--granularity operation` |
 |---|---|---|
-| `--mode chain` *(default)* | generate → validate → feed errors back → repair, up to `--max-repairs` | production; predictable cost, bounded retries |
-| `--mode agent` | LangChain tool-calling agent; the model calls `validate_spine` itself and iterates until VALID | exploratory domains, self-correction without a fixed budget |
+| a node is | one agent or function | one state transition |
+| health-claims | **7 nodes** | 54 nodes |
+| generated | a package, 185-line pipeline | one 872-line file |
+| state machine | in `state["status"]` | *is* the graph |
+| use it for | development | proving reachability, the viewer |
 
-Both modes gate on the **same deterministic validator**. Schema-constrained
-decoding cannot catch unreachable states, deadlocks or cross-wired
-transitions, so the validator — not the JSON Schema — is the real contract.
-`spec/spine.schema.json` is applied first as a cheap structural pre-filter.
+Handoff edges at agent granularity are **derived**: unit U hands to V when U
+owns an operation landing in a state V owns an operation leaving.
 
-### Running against local Ollama
+---
 
-Local removes rate limits but **not** context limits. Two settings matter:
+## Why a spine instead of emitting JSON-LD directly
 
-```bash
-OLLAMA_NUM_CTX=16384    # Ollama defaults to 4096, which truncates the spine
-OLLAMA_JSON=1           # native JSON mode, on by default; small models need it
-```
+The assistant this replaces made the model generate the `@context`, every
+prefix, `"type":"State"` on every node and the pretty-printing — all
+deterministic constants. On the same 8-entity domain:
 
-```bash
-.venv/bin/python -m builder "..." -p ollama -m qwen3:4b-instruct
-```
+| artifact | ~tokens | who pays |
+|---|---|---|
+| `spine.json` — the model writes this | **2,855** | model |
+| `schema.jsonld` — compiled | 8,277 | free |
+| `digest.json` — stage 2 reads this | 2,399 | free |
 
-**Fit the model in VRAM.** A 4 GB card running a 7B Q4 model (~4.7 GB, ~6.1 GB
-resident with a 16k context) spills to CPU and drops to a crawl — check with
-`ollama ps`, which shows the CPU/GPU split. On 4 GB prefer a 3-4B model:
-`qwen3:4b-instruct`, `qwen2.5-coder:3b`, `llama3.2:3b`. Raising `OLLAMA_NUM_CTX`
-also grows the KV cache, so context and model size compete for the same VRAM.
+**66% fewer output tokens** for identical content.
 
-## Viewing and validating a schema
+The compiler also fixes defects a prose "quality gate" cannot catch, verified
+against a real JSON-LD processor: `attributes` used to expand to an empty blank
+node and lose every field; single-valued link properties round-tripped as bare
+strings; the namespace squatted on domains nobody owns; `emitsEvent` pointed at
+`State` nodes with no `Event` type existing.
 
-`viewer/` is a dependency-free HTML page that renders any compiled `.jsonld`
-from this pipeline. No build step, no CDN, no network — the file never leaves
-your machine.
+---
 
-```bash
-xdg-open viewer/index.html          # then drag a .jsonld onto the page
-# or, to deep-link a file:
-python3 -m http.server 8000
-#   http://localhost:8000/viewer/?src=../examples/claims.jsonld
-#   http://localhost:8000/viewer/?src=../out/hospital2.jsonld
-```
+## What the validators enforce
 
-It shows:
+Non-negotiable, `--strict` exits non-zero:
 
-- **a validation panel** that re-implements the Python validator in the
-  browser — reachability, deadlocks, terminal states with outgoing edges,
-  dangling relation targets. Verified to agree with `compiler/compile.py` on
-  the same inputs.
-- **a state-machine diagram per entity**, auto-laid-out by BFS rank from the
-  initial state. Initial states are outlined, terminal states dashed,
-  decision points dotted; human-in-the-loop transitions are drawn in a
-  distinct colour and high-risk ones dashed.
-- **decision points** listed with their branches — these are the conditional
-  edges of the eventual LangGraph.
-- **actors and systems** ranked by how many operations touch them, which is
-  the evidence for how many agents and tools the domain actually needs.
-- **entities, relations and cardinalities**, plus derived events.
+**Domain model** — every state reachable from the initial state; no deadlocks;
+terminal states have no outgoing transitions; an operation's endpoints belong to
+its own entity; relation targets exist with valid cardinality; no isolated
+entities.
 
-It is generic: it reads the `@graph`, not any particular domain, so it works
-on every schema this pipeline produces.
+**Topology** — every operation owned exactly once; an agent's tools appear in
+its *own* operations (least privilege); one router per decision point;
+`decidedBy` resolves.
 
-### Rate limits and oversized requests
+**Advisory warnings** — a lifecycle with no branch at all (no failure path);
+fewer than half the entities having a lifecycle; a `by: System` operation owned
+by an agent; approaching one agent per operation; three or more agents with no
+orchestrator.
 
-`builder/retry.py` handles both without configuration. It parses the
-provider's own numbers out of the error (`Limit 8000, Requested 10572`) and
-shrinks `max_tokens` to fit, then backs off exponentially on 429/TPM errors,
-honouring `try again in Ns` when the provider sends it.
+Operations with `by: System` become **functions, not agents**. A model has no
+business deciding whether a bank transfer settled.
 
-Set `LLM_MAX_TOKENS` to cap output globally. The default is 16000 because
-several providers default to 1-4k and truncate the spine mid-object — on the
-first live run that cost 4 attempts and 20,850 tokens; setting it explicitly
-brought the same domain down to 1 attempt and 7,201 tokens.
+---
 
-> On a low per-minute quota, prefer `--mode chain`. Agent mode sends the whole
-> spine through a tool-call argument, which roughly doubles its cost; if the
-> provider then fails the tool call, the builder falls back to chain mode
-> automatically.
-
-### Evals
-
-`evals/` scores the builder across five golden domains so prompt changes are
-measurable rather than felt. This is deliberate: the v3.2 assistant this
-replaces sat at version 3.2 with a 2.8-star rating and no way to tell whether
-any edit had helped.
+## Viewer
 
 ```bash
-.venv/bin/python evals/run_eval.py -p groq --pause 50          # all domains
-.venv/bin/python evals/run_eval.py -p groq -d claims -r 3      # determinism
-.venv/bin/python evals/run_eval.py -p groq --baseline evals/report.json
+xdg-open viewer/index.html          # drag a .jsonld onto the page
+python3 -m http.server 8000         # or: /viewer/?src=../examples/claims.jsonld
 ```
 
-Per run it records validity, repair attempts, node counts, decision points,
-wall time, output tokens, and **coverage** - the share of operations carrying
-the actor and system fields stage 2 needs. With `-r > 1` it hashes each spine
-and reports whether `temperature=0` actually produced identical output.
+No build step, no CDN, no network. It re-implements the validator in the
+browser and draws a state machine per entity, marking decision points,
+human-in-the-loop transitions and high-risk ones.
 
-`--pause` spaces calls out to stay under a per-minute token quota.
+---
 
-### Offline test
+## Evals
 
 ```bash
-.venv/bin/python tests/test_loop.py    # no API key, no network
+.venv/bin/python evals/run_eval.py -p groq --pause 45        # 5 golden domains
+.venv/bin/python evals/run_eval.py -p groq -d claims -r 3    # determinism
 ```
 
-Feeds a fake model a spine with three planted defects, asserts the loop
-rejects it, repairs on attempt 2, and compiles to 65 nodes.
+Scores validity, repair attempts, node counts, decision points, tokens, and
+coverage — the share of operations carrying the actor and system fields stage 2
+needs. Without this, "the next prompt is better" is a guess, which is how the
+assistant this replaces reached version 3.2 at 2.8 stars with no way to tell.
 
-## Compiler usage
+---
 
+## Verification status
 
-```bash
-python3 compiler/compile.py examples/claims.spine.json -o examples/
-python3 compiler/compile.py my.spine.json -o out/ --strict   # exit 1 on errors
-```
+What has been exercised, as opposed to written.
 
-Use `spec/spine.schema.json` as the constrained-decoding / structured-output
-schema for LLM #1 so malformed spines are impossible rather than merely
-discouraged.
+| area | status |
+|---|---|
+| Compiler output as RDF | **verified** — 0 blank nodes, via pyld |
+| Both validators catch planted defects | **verified** |
+| Repair loop | **verified** offline, no key or network |
+| Browser validator agrees with the Python one | **verified** |
+| Live generation, Groq | **verified** |
+| Claude Code path, end to end | **verified** — two real domains |
+| Agent-granularity codegen | **verified** — compiles, graph builds, tests pass |
+| Regeneration preserves your code | **verified** — edited, regenerated, survived |
+| Eval across 5 domains | **run** — 4/5, mean 2.25 attempts |
+| Determinism at `temperature=0` | **fails** — see below |
+| Live: xAI Grok, Anthropic, OpenAI, Google | **not verified** — wired, no key |
+| Ollama | **partial** — a 4 GB GPU cannot hold a useful model plus a 16k context |
+| `--mode agent` (API path) | **not verified** — falls back to chain mode |
+| Constrained decoding | **not implemented** |
 
-## Gaps closed
+---
 
-| # | Gap in v3.2 | Fix | Where |
-|---|---|---|---|
-| A1 | `attributes` expanded to an empty blank node — all field data lost; also violated the prompt's own "no blank nodes" rule | `@type: @json` literal | compiler |
-| A2 | No `@container: @set`; single-value link properties round-tripped as strings | `@container: @set` on every multi-valued link | compiler |
-| A3 | Squatted `ontology.<domain>.org` | `urn:ctxstudio:<ns>:` | compiler |
-| A4 | `via` declared, never used | removed | compiler |
-| A5 | Undeclared terms silently dropped on expansion | `@version: 1.1` + `@vocab` | compiler |
-| A6 | No document identity or version; isolated entities merely warned | `schema:Dataset` node **inside** `@graph` (a root `@id` would make it a named graph); isolated entities are now an **error**, checked in both relation directions | compiler |
-| B7 | `emitsEvent` pointed at State nodes; no Event type | real `Event` nodes, derived from `O[].emit` | compiler |
-| B8 | State machines could be unreachable, deadlocked, cross-wired; Operations had no owning entity | `ownedBy` + 6 enforced rules | validator |
-| B9 | Operations had no actor, system, HITL or risk | `by`, `sys`, `hitl`, `risk` | spine |
-| B10 | `relatesTo` untyped and directionless | `rels` carries cardinality + label alongside visual `relatesTo` | spine + compiler |
-| B11 | No decision points | derived: any state with outgoing fan-out > 1 | compiler |
-| C13 | "code block" vs "output only JSON" contradiction | one unambiguous output contract | prompt |
-| C14 | Three conflicting size signals | one sizing guide with a stated rationale | prompt |
-| C15 | No worked example | `examples/claims.spine.json` | examples |
-| C21 | Rules were prose, unverifiable | JSON Schema + executable validator | spec + compiler |
-| D22 | `max_tokens: 10000` vs "do not truncate" | output is 66% smaller; 8-entity domain costs 2.9k not 8.3k | architecture |
+## Known gaps
 
-Still to set on the platform: `temperature: 0` (D24), structured output bound
-to `spine.schema.json` (D25), drop the dead `budget_tokens` or enable extended
-thinking (D23/C16), and add `samplePrompts` (C19).
+1. **The spine cannot express entity creation.** An operation's `from` and `to`
+   must belong to the same entity, and nothing exists before creation, so the
+   moment a `Job` or an `Invoice` is born is recorded only in a postcondition —
+   invisible to the graph and to codegen. Affects 4 of 7 lifecycle entities in
+   one real project and 5 of 7 in another. The fix is a `creates` field on
+   operations. **This is the next thing to do.**
+
+2. **Read-only agents cannot be expressed.** `topology.schema.json` requires
+   `owns` to have at least one operation, so an agent that only answers "where
+   is my claim?" — which changes no state — has nowhere to live. Two separate
+   planning runs hit this independently.
+
+3. **`temperature=0` is not reproducible on Groq.** Two runs of one domain, same
+   prompt and same input, gave `6E 12S 10O` and `5E 10S 10O` — different models,
+   different hashes. The setting is applied; the provider does not honour it as
+   determinism. Do not assume re-running gives the same schema.
+
+4. **The viewer only reads the domain graph**, not the agent topology, which is
+   now the more interesting artifact.
+
+5. **The pipeline has outgrown Groq's free tier.** A correctly sized schema
+   averages ~9,700 output tokens against an 8,000 TPM cap. That is arithmetic,
+   not a bug — and an argument for the Claude Code path.
+
+---
 
 ## Layout
 
 ```
-builder/providers.py              multi-provider LLM factory (incl. Grok)
-builder/spine_builder.py          generate -> validate -> repair loop
-builder/agent.py                  tool-calling agent mode
-builder/tools.py                  validator exposed as LangChain tools
-builder/cli.py                    python -m builder
-tests/test_loop.py                offline end-to-end test
-prompts/01_schema_builder_v4.md   stage 1 prompt (spine, not JSON-LD)
-prompts/02_agent_planner.md       stage 2 prompt (digest -> LangGraph)   [next]
-spec/spine.schema.json            constrained-decoding schema for stage 1
+prompts/01_schema_builder_v4.md   brief -> spine
+prompts/02_agent_planner.md       digest -> topology
+spec/spine.schema.json            structural pre-filter
+spec/topology.schema.json         structural pre-filter
 compiler/compile.py               spine -> jsonld + report + digest
-examples/claims.spine.json        worked example, 8 entities
-examples/claims.jsonld            compiled, 65 nodes, 517 triples, 0 blank nodes
-examples/claims.digest.json       stage 2 input
+compiler/langgraph_gen.py         topology validator + operation granularity
+compiler/pipeline_gen.py          agent granularity: orchestrator/, agents/, functions/
+compiler/scaffold.py              the project folder, docs, git init
+builder/                          the API path: providers, repair loop, retry, CLI
+.claude/skills/build-platform/    the Claude Code path
+.claude/agents/                   domain-modeller, agent-architect
+evals/                            golden domains + scoring
+viewer/                           dependency-free browser viewer
+examples/                         a worked domain, end to end
+tests/test_loop.py                offline test, no key or network
 ```
-
-
-## Verification status
-
-What has actually been exercised, as opposed to written.
-
-| area | status |
-|---|---|
-| Compiler output as RDF | **verified** - 65 nodes, 517 triples, 0 blank nodes, via pyld |
-| Validator catches planted defects | **verified** - 5 injected bugs, 8 errors, exit 1 |
-| Repair loop | **verified** offline, no key or network (`tests/test_loop.py`) |
-| Viewer validator agrees with the Python one | **verified** on three files including a broken one |
-| Live generation, Groq | **verified** - `openai/gpt-oss-120b`, one attempt, clean output |
-| Eval harness across 5 domains | **run** - 4/5 pass, mean 2.0 attempts, coverage 1.00 (`evals/report.json`) |
-| Determinism at `temperature=0` | **fails** - two runs of one domain gave two different spines (`evals/determinism.json`) |
-| Live generation: xAI Grok, Anthropic, OpenAI, Google | **not verified** - wired, packages import, no key available |
-| Ollama | **partial** - runs, but a 4 GB GPU cannot hold a useful model plus a 16k context; no run completed |
-| Agent mode (`--mode agent`) | **not verified** - exceeds an 8000 TPM quota and falls back to chain mode; the fallback is verified, the agent path is not |
-| Constrained decoding | **not implemented** - the JSON Schemas validate after generation, they do not constrain it |
-| Stage 2 codegen | **verified** - generated graph compiles, runs, pauses at a human interrupt, resumes to END |
-
-## Not done
-
-- **Stage 2**: `digest.json` to LangGraph topology. `prompts/02_agent_planner.md`
-  does not exist yet.
-- **SHACL shapes** for validating the compiled JSON-LD as RDF. The Python and
-  JavaScript validators cover the same rules today, which is duplication that
-  SHACL would remove.
-
-
-## Stage 2 - agent topology
-
-```
-digest.json ──▶ [LLM: prompts/02_agent_planner.md] ──▶ topology.json
-                                                            │
-                                      compiler/langgraph_gen.py (deterministic)
-                                                            │
-                                          ┌─────────────────┴──────────────┐
-                                          ▼                                ▼
-                                    graph.py (runnable)            validation report
-```
-
-```bash
-.venv/bin/python compiler/langgraph_gen.py \
-    examples/claims.digest.json examples/claims.topology.json \
-    -o examples/claims_graph.py --strict
-```
-
-The planner decides only what the data cannot settle: how to group operations
-into agents, and why. Everything else is derived - nodes from operations,
-conditional edges from decision points, `interrupt_before` from `hitl`, the
-tool inventory from `sys`, `START`/`END` from initial and terminal states.
-
-Operations with `by: System` become **plain functions, not agents**. A model
-has no business deciding whether a bank transfer settled.
-
-The topology validator enforces: every operation owned exactly once; tools
-drawn only from that unit's own operations (least privilege); one router per
-decision point; `decidedBy` resolves to a real id; and it warns when the
-agent-to-operation ratio approaches one-per-operation, or when three or more
-agents run without an orchestrator.
-
-Generated routers **raise rather than default to a branch**. Several decision
-points sit on a cycle (`RequestMoreInfo` to `ResubmitInfo` and back), so an
-arbitrary default loops forever instead of failing.
-
-On the claims example: 4 agents, 2 functions, 9 tools, 5 routers, 6
-interrupts, 375 lines, and a run that pauses at `approve_claim` and resumes
-to `END`.
-
-## Known quality issues
-
-Found by the eval, not yet fixed.
-
-1. **`temperature=0` is not deterministic on Groq.** Two runs of the same
-   domain produced different spines (`6E/12S/10O` vs `5E/10S/10O`). The
-   setting is applied; the provider does not honour it as reproducibility.
-   Do not assume re-running gives the same schema.
-2. **The model under-models against the prompt's own sizing guidance.** The
-   prompt asks for 15-35 operations; runs produced 8-12, and 9-16 states
-   against a stated 15-30. Either the guidance needs to be more forceful or
-   the floor needs enforcing in the validator.
-3. **Mean 2.0 repair attempts.** Better than truncation-era 4, but a
-   first-pass-valid rate of 100% should be reachable.
