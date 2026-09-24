@@ -287,6 +287,14 @@ async def handle(state: PipelineState) -> dict[str, Any]:
     `awaiting_human` and let the graph interrupt.
     """
     raise NotImplementedError("implement {unit['id']}.handle")
+
+
+# Define `route(state)` here to decide where the run goes next. The generated
+# router calls it, so the decision lives with the unit that made it rather than
+# in a file you must not edit.
+#
+# def route(state: PipelineState) -> str:
+#     ...
 '''
 
 
@@ -388,6 +396,14 @@ async def handle(state: PipelineState) -> dict[str, Any]:
     decision already made. Call the system directly; do not call a model.
     """
     raise NotImplementedError("implement {unit['id']}.handle")
+
+
+# Define `route(state)` here to decide where the run goes next. The generated
+# router calls it, so the decision lives with the unit rather than in a file
+# you must not edit.
+#
+# def route(state: PipelineState) -> str:
+#     ...
 '''
 
 
@@ -416,15 +432,21 @@ def route_after_{uid}(state: PipelineState) -> Literal[{lit}]:
     """Where the run goes after {uid}.
 
     Derived from the state machine: these are the only units owning an
-    operation that can leave the states {uid} can land in. Decide from
-    `status`; the explicit override in `decisions` exists for tests.
+    operation that can leave the states {uid} can land in.
+
+    The decision itself belongs to the unit, not here - this file is
+    generated. Define `route(state)` in the unit's module and it is used.
+    `decisions` overrides it, for tests.
     """
     choice = state.get("decisions", {{}}).get({uid!r})
     if choice is not None:
         return choice
+    router = getattr({uid}, "route", None)
+    if router is not None:
+        return router(state)
     raise NotImplementedError(
-        "{uid}: implement route_after_{uid}, or set "
-        "state['decisions']['{uid}'] to one of {opts!r}")''')
+        "{uid}: define route(state) in its module returning one of {opts!r}, "
+        "or set state['decisions'][{uid!r}]")''')
 
         # END is a LangGraph sentinel object, not the string "END"; emit it as a
         # bare identifier or compile() rejects the branch as an unknown target.
