@@ -9,7 +9,8 @@ function render() {
   const c = m.counts;
   $('#stats').innerHTML = [
     ['entities', c.entities], ['states', c.states], ['operations', c.operations],
-    ['events', c.events], ['decision points', c.decisions], ['actors', c.actors],
+    ['events', c.events], ['decision points', c.decisions],
+    ['creations', c.creations], ['actors', c.actors],
     ['systems', c.systems], ['human-in-loop', c.hitl], ['high risk', c.highRisk],
   ].map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`).join('');
 
@@ -136,6 +137,16 @@ function tabRelations() {
         <td><code>${esc(c)}</code></td><td><b>${esc(b)}</b></td>
         <td class="muted sm">${esc(l)}</td></tr>`).join('')}</tbody></table>`
       : `<p class="muted">None.</p>`}</div>
+    ${(() => {
+      const cr = m.ops.filter(o => m.arr(o.creates).length);
+      return cr.length ? `<div class="card"><h3>Creation (${cr.length})</h3>
+        <p class="muted sm">Which operation brings each business object into existence.
+        A transition cannot cross entities, so this is recorded explicitly.</p>
+        <table><thead><tr><th>operation</th><th>creates</th></tr></thead><tbody>${
+          cr.map(o => `<tr><td><b>${esc(local(o.id))}</b></td><td>${
+            m.arr(o.creates).map(c => `<b>${esc(local(c))}</b>`).join(', ')}</td></tr>`).join('')
+        }</tbody></table></div>` : '';
+    })()}
     ${m.events.length ? `<div class="card"><h3>Events (${m.events.length})</h3>
       <div class="chips">${m.events.map(e => `<span class="chip static">${esc(local(e.id))}</span>`).join('')}</div>
       </div>` : ''}`;

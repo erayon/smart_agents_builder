@@ -39,6 +39,7 @@ and encode your assumption in the `title`.
 | `s0` | if `s` | initial state, must be in `s` |
 | `sT` | if `s` | terminal states, must be in `s` |
 | `r` | yes* | relations as `[[TargetEntity, "1-1\|1-n\|n-1\|n-n", "label"], ...]` |
+| `origin` | no | `"external"` if it arrives from outside the process — a customer files it, a sensor raises it. Omit when another operation creates it. |
 
 \* An entity may omit `r` only if another entity relates **to** it. Every
 entity must appear in at least one relation, in one direction or the other.
@@ -68,6 +69,7 @@ entities produces two distinct nodes.
 | `by` | yes | the actor: a role (`Adjuster`), `System`, or a bot (`DocumentBot`) |
 | `sys` | yes | systems or data stores touched, e.g. `["ClaimDB","PaymentGateway"]` |
 | `emit` | no | event names this operation raises, e.g. `["ClaimApproved"]` |
+| `creates` | no | entities this operation brings into existence, e.g. `["Assessment"]` |
 | `hitl` | no | `true` if a human must approve this step |
 | `risk` | no | `low` \| `medium` \| `high` — financial, legal or safety exposure |
 
@@ -85,6 +87,12 @@ downstream signal.
 7. No isolated entities. Every entity must take part in at least one relation,
    as source or target. A business object that nothing references is a
    modelling mistake, not a valid minimal answer.
+8. Every lifecycle entity must have an origin. Either some operation lists it
+   in `creates`, or it is marked `"origin": "external"`. An entity's `f` and
+   `t` must belong to one entity, so the moment a different one is born can
+   never be a transition — `creates` is how you record it. Without it, nothing
+   in the model says where a `Job`, an `Invoice` or an `Assessment` comes from,
+   and the generated code has no place to make one.
 
 ## Sizing
 
@@ -109,7 +117,8 @@ into synonyms to inflate the count, and never emit placeholder entities such
 as `Thing`, `Object` or `GenericEntity`.
 
 ## Before you answer
-Silently check rules 1–7 against your own spine, especially reachability and
-deadlocks. Then count: operations should be at least as many as states, and at
+Silently check rules 1–8 against your own spine, especially reachability,
+deadlocks, and that every lifecycle entity is either created by an operation or
+marked external. Then count: operations should be at least as many as states, and at
 least half your entities should have a lifecycle. If not, add the transitions
 you skipped before emitting the JSON object.

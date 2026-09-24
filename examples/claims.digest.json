@@ -157,7 +157,8 @@
     "NotificationSvc"
    ],
    "hitl": false,
-   "risk": "low"
+   "risk": "low",
+   "creates": []
   },
   {
    "n": "StartReview",
@@ -170,7 +171,10 @@
     "AssessmentSvc"
    ],
    "hitl": false,
-   "risk": "low"
+   "risk": "low",
+   "creates": [
+    "Assessment"
+   ]
   },
   {
    "n": "RequestMoreInfo",
@@ -182,7 +186,8 @@
     "NotificationSvc"
    ],
    "hitl": false,
-   "risk": "low"
+   "risk": "low",
+   "creates": []
   },
   {
    "n": "ResubmitInfo",
@@ -195,7 +200,8 @@
     "DocumentStore"
    ],
    "hitl": false,
-   "risk": "low"
+   "risk": "low",
+   "creates": []
   },
   {
    "n": "ApproveClaim",
@@ -208,7 +214,10 @@
     "FraudSvc"
    ],
    "hitl": true,
-   "risk": "high"
+   "risk": "high",
+   "creates": [
+    "Settlement"
+   ]
   },
   {
    "n": "RejectClaim",
@@ -221,7 +230,8 @@
     "NotificationSvc"
    ],
    "hitl": true,
-   "risk": "high"
+   "risk": "high",
+   "creates": []
   },
   {
    "n": "CloseApproved",
@@ -233,7 +243,8 @@
     "ClaimDB"
    ],
    "hitl": false,
-   "risk": "low"
+   "risk": "low",
+   "creates": []
   },
   {
    "n": "CloseRejected",
@@ -245,7 +256,8 @@
     "ClaimDB"
    ],
    "hitl": false,
-   "risk": "medium"
+   "risk": "medium",
+   "creates": []
   },
   {
    "n": "VerifyDocument",
@@ -258,7 +270,8 @@
     "OCRSvc"
    ],
    "hitl": false,
-   "risk": "low"
+   "risk": "low",
+   "creates": []
   },
   {
    "n": "FlagInvalidDocument",
@@ -271,7 +284,8 @@
     "OCRSvc"
    ],
    "hitl": false,
-   "risk": "medium"
+   "risk": "medium",
+   "creates": []
   },
   {
    "n": "StartAssessment",
@@ -283,7 +297,8 @@
     "AssessmentSvc"
    ],
    "hitl": false,
-   "risk": "low"
+   "risk": "low",
+   "creates": []
   },
   {
    "n": "CompleteAssessment",
@@ -296,7 +311,8 @@
     "PricingSvc"
    ],
    "hitl": true,
-   "risk": "medium"
+   "risk": "medium",
+   "creates": []
   },
   {
    "n": "AcceptSettlement",
@@ -309,7 +325,10 @@
     "NotificationSvc"
    ],
    "hitl": false,
-   "risk": "low"
+   "risk": "low",
+   "creates": [
+    "Payment"
+   ]
   },
   {
    "n": "DeclineSettlement",
@@ -322,7 +341,8 @@
     "NotificationSvc"
    ],
    "hitl": false,
-   "risk": "medium"
+   "risk": "medium",
+   "creates": []
   },
   {
    "n": "ExecutePayment",
@@ -335,7 +355,8 @@
     "LedgerSvc"
    ],
    "hitl": true,
-   "risk": "high"
+   "risk": "high",
+   "creates": []
   },
   {
    "n": "FailPayment",
@@ -347,7 +368,8 @@
     "PaymentGateway"
    ],
    "hitl": false,
-   "risk": "high"
+   "risk": "high",
+   "creates": []
   },
   {
    "n": "ReviewAppeal",
@@ -360,7 +382,8 @@
     "AssessmentSvc"
    ],
    "hitl": false,
-   "risk": "medium"
+   "risk": "medium",
+   "creates": []
   },
   {
    "n": "UpholdRejection",
@@ -373,7 +396,8 @@
     "NotificationSvc"
    ],
    "hitl": true,
-   "risk": "high"
+   "risk": "high",
+   "creates": []
   },
   {
    "n": "OverturnRejection",
@@ -386,7 +410,8 @@
     "AssessmentSvc"
    ],
    "hitl": true,
-   "risk": "high"
+   "risk": "high",
+   "creates": []
   }
  ],
  "decisionPoints": [

@@ -156,19 +156,37 @@ Non-negotiable, `--strict` exits non-zero:
 **Domain model** — every state reachable from the initial state; no deadlocks;
 terminal states have no outgoing transitions; an operation's endpoints belong to
 its own entity; relation targets exist with valid cardinality; no isolated
-entities.
+entities; `creates` names a real, different entity.
 
 **Topology** — every operation owned exactly once; an agent's tools appear in
 its *own* operations (least privilege); one router per decision point;
 `decidedBy` resolves.
 
-**Advisory warnings** — a lifecycle with no branch at all (no failure path);
+**Advisory warnings** — a lifecycle entity with no origin, meaning nothing
+creates it and it is not marked external; a lifecycle with no branch at all (no
+failure path);
 fewer than half the entities having a lifecycle; a `by: System` operation owned
 by an agent; approaching one agent per operation; three or more agents with no
 orchestrator.
 
 Operations with `by: System` become **functions, not agents**. A model has no
 business deciding whether a bank transfer settled.
+
+### Where things come from
+
+An operation's `from` and `to` must belong to one entity, so the moment a
+*different* entity is born can never be a transition. Two ways to say it:
+
+```json
+{"n": "StartReview", "e": "Claim", "creates": ["Assessment"]}
+{"n": "Claim", "origin": "external"}
+```
+
+`creates` becomes a real edge in the graph and reaches the generated code as a
+`CREATES` list on the owning unit, so there is a named place to construct the
+record. `origin: external` marks the things that arrive from outside — a
+customer files them, a sensor raises them. A lifecycle entity with neither is
+warned about, because otherwise nothing in the model says where it comes from.
 
 ---
 
@@ -224,27 +242,20 @@ What has been exercised, as opposed to written.
 
 ## Known gaps
 
-1. **The spine cannot express entity creation.** An operation's `from` and `to`
-   must belong to the same entity, and nothing exists before creation, so the
-   moment a `Job` or an `Invoice` is born is recorded only in a postcondition —
-   invisible to the graph and to codegen. Affects 4 of 7 lifecycle entities in
-   one real project and 5 of 7 in another. The fix is a `creates` field on
-   operations. **This is the next thing to do.**
-
-2. **Read-only agents cannot be expressed.** `topology.schema.json` requires
+1. **Read-only agents cannot be expressed.** `topology.schema.json` requires
    `owns` to have at least one operation, so an agent that only answers "where
    is my claim?" — which changes no state — has nowhere to live. Two separate
    planning runs hit this independently.
 
-3. **`temperature=0` is not reproducible on Groq.** Two runs of one domain, same
+2. **`temperature=0` is not reproducible on Groq.** Two runs of one domain, same
    prompt and same input, gave `6E 12S 10O` and `5E 10S 10O` — different models,
    different hashes. The setting is applied; the provider does not honour it as
    determinism. Do not assume re-running gives the same schema.
 
-4. **The viewer only reads the domain graph**, not the agent topology, which is
+3. **The viewer only reads the domain graph**, not the agent topology, which is
    now the more interesting artifact.
 
-5. **The pipeline has outgrown Groq's free tier.** A correctly sized schema
+4. **The pipeline has outgrown Groq's free tier.** A correctly sized schema
    averages ~9,700 output tokens against an 8,000 TPM cap. That is arithmetic,
    not a bug — and an argument for the Claude Code path.
 

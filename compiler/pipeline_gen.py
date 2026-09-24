@@ -214,7 +214,9 @@ def gen_agent_module(unit, digest) -> str:
     table = "\n".join(
         f"#   {o['n']:<28} {o['e']:<18} {o['f']} -> {o['t']}"
         + ("   [human approval]" if o.get("hitl") else "")
+        + (f"   creates {', '.join(o['creates'])}" if o.get("creates") else "")
         for o in ops)
+    makes = sorted({c for o in ops for c in o.get("creates", [])})
     prompt = unit.get("prompt", "").replace('"""', "'''")
     tools = unit.get("tools", [])
     return f'''"""{unit.get("name", unit["id"])}.
@@ -245,6 +247,9 @@ OPERATIONS: list[str] = {[o["n"] for o in ops]!r}
 
 HUMAN_APPROVAL: list[str] = {[o["n"] for o in ops if o.get("hitl")]!r}
 
+# entities this unit brings into existence - it must construct and persist them
+CREATES: list[str] = {makes!r}
+
 SYSTEM_PROMPT = """{prompt}
 
 You may use only these tools: {", ".join(tools) or "none"}.
@@ -269,7 +274,11 @@ async def handle(state: PipelineState) -> dict[str, Any]:
 
 def gen_function_module(unit, digest) -> str:
     ops = [o for o in digest["operations"] if o["n"] in unit["owns"]]
-    table = "\n".join(f"#   {o['n']:<28} {o['e']:<18} {o['f']} -> {o['t']}" for o in ops)
+    table = "\n".join(
+        f"#   {o['n']:<28} {o['e']:<18} {o['f']} -> {o['t']}"
+        + (f"   creates {', '.join(o['creates'])}" if o.get("creates") else "")
+        for o in ops)
+    makes = sorted({c for o in ops for c in o.get("creates", [])})
     return f'''"""{unit["id"]} - deterministic. No model decides these.
 
 {unit.get("why", "")}
@@ -292,6 +301,9 @@ logger = logging.getLogger(__name__)
 TOOL_NAMES: list[str] = {unit.get("tools", [])!r}
 
 OPERATIONS: list[str] = {[o["n"] for o in ops]!r}
+
+# entities this unit brings into existence
+CREATES: list[str] = {makes!r}
 
 
 async def handle(state: PipelineState) -> dict[str, Any]:

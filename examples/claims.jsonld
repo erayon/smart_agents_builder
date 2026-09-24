@@ -38,6 +38,7 @@
     "requiresHuman": "clm:requiresHuman",
     "risk": "clm:risk",
     "isDecisionPoint": "clm:isDecisionPoint",
+    "origin": "clm:origin",
     "hasState": {
       "@id": "clm:hasState",
       "@type": "@id",
@@ -59,6 +60,11 @@
     },
     "emitsEvent": {
       "@id": "clm:emitsEvent",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "creates": {
+      "@id": "clm:creates",
       "@type": "@id",
       "@container": "@set"
     },
@@ -157,6 +163,7 @@
       "description": "Request for payment of covered medical costs",
       "identityKey": "claimId",
       "humanRef": "claimNumber",
+      "origin": "external",
       "attributes": {
         "amountClaimed": "number",
         "incidentDate": "date",
@@ -235,6 +242,7 @@
       "description": "Evidence attached to a claim, such as an invoice or report",
       "identityKey": "documentId",
       "humanRef": "fileName",
+      "origin": "external",
       "attributes": {
         "kind": "string",
         "uploadedAt": "datetime",
@@ -402,6 +410,7 @@
       "description": "Challenge raised against a rejected claim",
       "identityKey": "appealId",
       "humanRef": "appealRef",
+      "origin": "external",
       "attributes": {
         "grounds": "string",
         "filedAt": "datetime",
@@ -647,7 +656,10 @@
         "ClaimDB",
         "AssessmentSvc"
       ],
-      "risk": "low"
+      "risk": "low",
+      "creates": [
+        "clm:Assessment"
+      ]
     },
     {
       "id": "clm:RequestMoreInfo",
@@ -717,6 +729,9 @@
       "risk": "high",
       "emitsEvent": [
         "clm:ClaimApproved"
+      ],
+      "creates": [
+        "clm:Settlement"
       ]
     },
     {
@@ -907,6 +922,9 @@
       "risk": "low",
       "emitsEvent": [
         "clm:SettlementAccepted"
+      ],
+      "creates": [
+        "clm:Payment"
       ]
     },
     {

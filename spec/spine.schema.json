@@ -2,59 +2,212 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Domain Spine",
   "type": "object",
-  "required": ["ns", "title", "E", "S", "O"],
+  "required": [
+    "ns",
+    "title",
+    "E",
+    "S",
+    "O"
+  ],
   "additionalProperties": false,
   "properties": {
-    "ns":    { "type": "string", "pattern": "^[a-z][a-z0-9]{1,4}$" },
-    "title": { "type": "string", "minLength": 3 },
-    "v":     { "type": "string" },
-    "base":  { "type": "string" },
+    "ns": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,4}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 3
+    },
+    "v": {
+      "type": "string"
+    },
+    "base": {
+      "type": "string"
+    },
     "E": {
-      "type": "array", "minItems": 1,
+      "type": "array",
+      "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["n", "d", "k", "h", "a"],
+        "required": [
+          "n",
+          "d",
+          "k",
+          "h",
+          "a"
+        ],
         "additionalProperties": false,
         "properties": {
-          "n":  { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" },
-          "d":  { "type": "string", "minLength": 5 },
-          "k":  { "type": "string" },
-          "h":  { "type": "string" },
-          "a":  { "type": "object", "additionalProperties": { "type": "string" } },
-          "inv":{ "type": "array", "items": { "type": "string" } },
-          "s":  { "type": "array", "items": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" }, "minItems": 2 },
-          "s0": { "type": "string" },
-          "sT": { "type": "array", "items": { "type": "string" } },
-          "r":  { "type": "array", "items": {
-                    "type": "array", "minItems": 2, "maxItems": 3,
-                    "prefixItems": [ { "type": "string" },
-                                     { "enum": ["1-1", "1-n", "n-1", "n-n"] },
-                                     { "type": "string" } ],
-                    "items": { "type": "string" } } }
+          "n": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Za-z0-9]*$"
+          },
+          "d": {
+            "type": "string",
+            "minLength": 5
+          },
+          "k": {
+            "type": "string"
+          },
+          "h": {
+            "type": "string"
+          },
+          "a": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "inv": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "s": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Za-z0-9]*$"
+            },
+            "minItems": 2
+          },
+          "s0": {
+            "type": "string"
+          },
+          "sT": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "r": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "enum": [
+                    "1-1",
+                    "1-n",
+                    "n-1",
+                    "n-n"
+                  ]
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "origin": {
+            "enum": [
+              "external",
+              "derived"
+            ],
+            "description": "external: arrives from outside the modelled process (a customer files it). derived: another operation creates it."
+          }
         },
-        "dependentRequired": { "s": ["s0", "sT"] }
+        "dependentRequired": {
+          "s": [
+            "s0",
+            "sT"
+          ]
+        }
       }
     },
-    "S": { "type": "object", "additionalProperties": { "type": "string" } },
+    "S": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
     "O": {
-      "type": "array", "minItems": 1,
+      "type": "array",
+      "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["n", "e", "f", "t", "d", "by", "sys"],
+        "required": [
+          "n",
+          "e",
+          "f",
+          "t",
+          "d",
+          "by",
+          "sys"
+        ],
         "additionalProperties": false,
         "properties": {
-          "n":   { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" },
-          "e":   { "type": "string" },
-          "f":   { "type": "string" },
-          "t":   { "type": "string" },
-          "d":   { "type": "string", "minLength": 5 },
-          "pre": { "type": "array", "items": { "type": "string" } },
-          "post":{ "type": "array", "items": { "type": "string" } },
-          "by":  { "type": "string" },
-          "sys": { "type": "array", "items": { "type": "string" } },
-          "emit":{ "type": "array", "items": { "type": "string" } },
-          "hitl":{ "type": "boolean" },
-          "risk":{ "enum": ["low", "medium", "high"] }
+          "n": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Za-z0-9]*$"
+          },
+          "e": {
+            "type": "string"
+          },
+          "f": {
+            "type": "string"
+          },
+          "t": {
+            "type": "string"
+          },
+          "d": {
+            "type": "string",
+            "minLength": 5
+          },
+          "pre": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "post": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "by": {
+            "type": "string"
+          },
+          "sys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "emit": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hitl": {
+            "type": "boolean"
+          },
+          "risk": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "creates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Entities this operation brings into existence."
+          }
         }
       }
     }

@@ -87,11 +87,13 @@ def build_context(ns, base):
         ("requiresHuman", f"{ns}:requiresHuman"),
         ("risk",          f"{ns}:risk"),
         ("isDecisionPoint", f"{ns}:isDecisionPoint"),
+        ("origin", f"{ns}:origin"),
         ("hasState",       linkset("hasState")),                          # A2
         ("initialState",  {"@id": f"{ns}:initialState", "@type": "@id"}),
         ("terminalStates", linkset("terminalStates")),
         ("relatesTo",      linkset("relatesTo")),
         ("emitsEvent",     linkset("emitsEvent")),
+        ("creates",        linkset("creates")),
         ("ownedBy",       {"@id": f"{ns}:ownedBy", "@type": "@id"}),      # B8
         ("from",          {"@id": f"{ns}:from", "@type": "@id"}),
         ("to",            {"@id": f"{ns}:to",   "@type": "@id"}),
@@ -142,6 +144,20 @@ def validate(spine, rep):
             if st not in sdesc and f"{name}.{st}" not in sdesc:
                 rep.warn("DESC", f"{name}.{st}: no state description in S")
 
+    # creation: an operation's f and t must belong to one entity, so the moment
+    # another entity comes into existence cannot be an edge. `creates` records
+    # it explicitly instead of leaving it buried in a postcondition.
+    created = set()
+    for o in ops:
+        for target in o.get("creates", []):
+            if target not in ents:
+                rep.err("C1", f"{o['n']}: creates unknown entity '{target}'")
+            elif target == o.get("e"):
+                rep.err("C2", f"{o['n']}: cannot create '{target}', the entity it "
+                              f"already acts on")
+            else:
+                created.add(target)
+
     # operations
     out_edges = defaultdict(list)   # (entity, state) -> [(op, to_state)]
     for o in ops:
@@ -180,6 +196,19 @@ def validate(spine, rep):
                               f"({', '.join(o for o, _ in fanout)})")
             if st not in e.get("sT", []) and not fanout:
                 rep.err("B8", f"{name}.{st}: non-terminal state has no outgoing operation (deadlock)")
+
+    # a lifecycle entity nothing creates has no point of origin in the graph
+    inbound = {(o.get("e"), o.get("t")) for o in ops}
+    for name, e in ents.items():
+        if not e.get("s"):
+            continue
+        if e.get("origin") == "external":
+            continue          # arrives from outside; nothing here should create it
+        if name in created or (name, e.get("s0")) in inbound:
+            continue
+        rep.warn("C3", f"{name}: nothing creates it - add it to an operation's "
+                       f"'creates', or mark the entity \"origin\": \"external\" if it "
+                       f"arrives from outside the process")
 
     # connectivity: every entity must take part in at least one relation, in
     # either direction. v3.2 banned isolated nodes outright and it was right to
@@ -238,6 +267,7 @@ def compile_jsonld(spine, ents, sdesc, ops, out_edges):
                             ("description", e.get("d", ""))])
         if e.get("k"): node["identityKey"] = e["k"]
         if e.get("h"): node["humanRef"] = e["h"]
+        if e.get("origin"): node["origin"] = e["origin"]
         if e.get("a"): node["attributes"] = e["a"]
         if e.get("inv"): node["invariant"] = e["inv"]
         if e.get("s"):
@@ -278,6 +308,7 @@ def compile_jsonld(spine, ents, sdesc, ops, out_edges):
         if o.get("hitl"): node["requiresHuman"] = True
         if o.get("risk"): node["risk"] = o["risk"]
         if o.get("emit"): node["emitsEvent"] = [P(ev) for ev in o["emit"]]
+        if o.get("creates"): node["creates"] = [P(c) for c in o["creates"]]
         graph.append(node)
 
     for ev, emitters in sorted(events.items()):
@@ -331,7 +362,8 @@ def build_digest(spine, ents, ops, decisions):
                                      ("by", o.get("by", "unassigned")),
                                      ("sys", o.get("sys", [])),
                                      ("hitl", bool(o.get("hitl"))),
-                                     ("risk", o.get("risk", "low"))]) for o in ops]),
+                                     ("risk", o.get("risk", "low")),
+                                     ("creates", o.get("creates", []))]) for o in ops]),
         ("decisionPoints", decisions),
         ("cohesion", {"byEntity": dict(by_entity),
                       "byActor": dict(by_actor),

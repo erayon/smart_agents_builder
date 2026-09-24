@@ -34,6 +34,7 @@ function parse(doc) {
       entities: entities.length, states: states.length,
       operations: ops.length, events: events.length,
       decisions: states.filter(s => s.isDecisionPoint).length,
+      creations: ops.filter(o => arr(o.creates).length).length,
       actors: new Set(ops.map(o => o.performedBy).filter(Boolean)).size,
       systems: new Set(ops.flatMap(o => arr(o.usesSystem))).size,
       hitl: ops.filter(o => o.requiresHuman).length,
@@ -56,6 +57,19 @@ function validate(m) {
   m.entities.forEach(e => {
     if (!related.has(local(e.id)))
       errs.push(['A6', `${local(e.id)}: isolated entity - no relation to or from any other entity`]);
+  });
+
+  // a lifecycle entity with no origin: nothing creates it and nothing
+  // transitions into its initial state. `f` and `t` belong to one entity, so
+  // creation can never be an edge - `creates` is how it is recorded.
+  const made = new Set(m.ops.flatMap(o => arr(o.creates).map(local)));
+  const landed = new Set(m.ops.map(o => local(o.to)));
+  m.entities.forEach(e => {
+    const name = local(e.id);
+    if (!arr(e.hasState).length || e.origin === 'external') return;
+    const init = local(e.initialState);
+    if (!made.has(name) && !landed.has(init))
+      warns.push(['C3', `${name}: nothing creates it and nothing reaches ${init}`]);
   });
 
   m.entities.forEach(e => {
