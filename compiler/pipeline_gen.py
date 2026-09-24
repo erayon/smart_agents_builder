@@ -46,10 +46,24 @@ def py_type(spec: str) -> str:
 
 
 # ---------------------------------------------------------------- units
+def readers_of(topo):
+    """Read-only agents: they answer questions and change nothing.
+
+    They are deliberately not part of the lifecycle pipeline. Answering "where
+    is my claim?" does not advance a claim, so putting such an agent in the
+    flow would mean every route had to step around it. Each gets its own small
+    graph instead, entered when a question arrives rather than when work does.
+    """
+    return [{**a, "kind": "reader"} for a in topo.get("agents", [])
+            if not a.get("owns") and a.get("reads")]
+
+
 def units_of(topo):
-    """Agents and functions, in one list, each tagged with its kind."""
+    """Working units: agents and functions that own operations."""
     out = []
     for a in topo.get("agents", []):
+        if not a.get("owns") and a.get("reads"):
+            continue
         out.append({**a, "kind": "agent"})
     for f in topo.get("functions", []):
         out.append({**f, "name": f.get("name", pascal(f["id"])), "kind": "function"})
@@ -206,6 +220,10 @@ class PipelineState(TypedDict, total=False):
     pending_operation: str | None
     awaiting_human: bool
     errors: list[str]
+
+    # set when a question graph is invoked rather than the lifecycle one
+    question: str | None
+    answer: str | None
 '''
 
 
@@ -272,6 +290,63 @@ async def handle(state: PipelineState) -> dict[str, Any]:
 '''
 
 
+def gen_reader_module(unit, digest) -> str:
+    reads = unit.get("reads", [])
+    ops = [o for o in digest["operations"] if o["e"] in reads]
+    prompt = unit.get("prompt", "").replace('"""', "'''")
+    return f'''"""{unit.get("name", unit["id"])} - read-only.
+
+{unit.get("role", "")}
+
+Why this grouping: {unit.get("why", "")}
+
+This agent answers questions and changes nothing. It owns no operations and
+must not write. It is not a node in the lifecycle pipeline; it has its own
+graph, entered when someone asks rather than when work arrives.
+
+This module is yours. It is created once and never regenerated.
+
+Reads: {", ".join(reads)}
+"""
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from orchestrator.state import PipelineState
+from tools import TOOLS
+
+logger = logging.getLogger(__name__)
+
+TOOL_NAMES: list[str] = {unit.get("tools", [])!r}
+
+READS: list[str] = {reads!r}
+
+# the operations whose outcomes it can be asked about, for context only -
+# it must not perform them
+VISIBLE_OPERATIONS: list[str] = {[o["n"] for o in ops]!r}
+
+SYSTEM_PROMPT = """{prompt}
+
+You may read {", ".join(reads) or "nothing"} and use only these tools: {", ".join(unit.get("tools", [])) or "none"}.
+
+You answer questions. You never change anything, never start or advance work,
+and never promise an outcome. If someone asks you to act, say which part of the
+system does it. If the answer is not in what you can read, say so rather than
+inferring it.
+"""
+
+
+async def answer(state: PipelineState, question: str) -> dict[str, Any]:
+    """Answer `question` from state. Return the answer; change nothing.
+
+    Read the payloads listed in READS, work out where things stand and what is
+    holding them up, and reply. Any state update returned here is a bug.
+    """
+    raise NotImplementedError("implement {unit['id']}.answer")
+'''
+
+
 def gen_function_module(unit, digest) -> str:
     ops = [o for o in digest["operations"] if o["n"] in unit["owns"]]
     table = "\n".join(
@@ -316,7 +391,7 @@ async def handle(state: PipelineState) -> dict[str, Any]:
 '''
 
 
-def gen_pipeline(digest, topo, owner, edges, ends, entry) -> str:
+def gen_pipeline(digest, topo, owner, edges, ends, entry, readers=()) -> str:
     units = units_of(topo)
     by_id = {u["id"]: u for u in units}
     hitl_units = sorted({owner[o["n"]] for o in digest["operations"]
@@ -358,10 +433,37 @@ def route_after_{uid}(state: PipelineState) -> Literal[{lit}]:
         wiring.append(f'    g.add_conditional_edges({uid!r}, route_after_{uid}, '
                       f'{{{mapping}}})')
 
+    readers_src = ""
+    if readers:
+        blocks = []
+        for r in readers:
+            blocks.append(f'''
+
+async def node_{r["id"]}(state: PipelineState) -> dict[str, Any]:
+    """{r.get("name", r["id"])} - read-only. Answers and changes nothing."""
+    return await {r["id"]}.answer(state, state.get("question", ""))
+
+
+def build_{r["id"]}_graph(checkpointer: Any | None = None):
+    """A question graph, not a lifecycle one: START -> {r["id"]} -> END.
+
+    It is separate because answering does not advance any entity. Invoke it
+    when someone asks something; invoke build_graph() when work arrives.
+    """
+    g = StateGraph(PipelineState)
+    g.add_node({r["id"]!r}, node_{r["id"]})
+    g.add_edge(START, {r["id"]!r})
+    g.add_edge({r["id"]!r}, END)
+    return g.compile(checkpointer=checkpointer or MemorySaver())''')
+        mapping = ", ".join(f"{r['id']!r}: build_{r['id']}_graph" for r in readers)
+        blocks.append(f"\n\nQUERY_GRAPHS = {{{mapping}}}\n")
+        readers_src = "".join(blocks)
+
     add_nodes = "\n".join(f'    g.add_node({u["id"]!r}, node_{u["id"]})' for u in units)
     imports = "\n".join(
-        f"from agents import {u['id']}" if u["kind"] == "agent"
-        else f"from functions import {u['id']}" for u in units)
+        [f"from agents import {u['id']}" if u["kind"] == "agent"
+         else f"from functions import {u['id']}" for u in units]
+        + [f"from agents import {r['id']}" for r in readers])
     interrupts = f",\n        interrupt_before={hitl_units!r}" if hitl_units else ""
 
     return f'''"""{digest["domain"]} - agent pipeline. GENERATED, do not edit.
@@ -418,7 +520,7 @@ def build_graph(checkpointer: Any | None = None):
 
 
 UNITS: dict[str, str] = {{{", ".join(f"{u['id']!r}: {u['kind']!r}" for u in units)}}}
-'''
+{readers_src}'''
 
 
 
@@ -427,9 +529,9 @@ GENERATED = ("orchestrator/models.py", "orchestrator/state.py",
              "agents/__init__.py", "functions/__init__.py")
 
 
-def gen_inits(units) -> dict[str, str]:
+def gen_inits(units, readers=()) -> dict[str, str]:
     """Package registries. Generated; the modules they import are yours."""
-    agents = [u["id"] for u in units if u["kind"] == "agent"]
+    agents = [u["id"] for u in units if u["kind"] == "agent"] + [r["id"] for r in readers]
     funcs = [u["id"] for u in units if u["kind"] == "function"]
     mk = lambda names, what: (
         f'"""{what} registry. GENERATED - do not edit.\n\n'
@@ -469,10 +571,13 @@ def generate(digest, spine, topo):
     edges, ends = handoffs(digest, topo)[1:]
     entry = entry_unit(digest, topo, owner)
     units = units_of(topo)
+    readers = readers_of(topo)
     return {
         "orchestrator/models.py": gen_models(digest, spine),
         "orchestrator/state.py": gen_state(digest, spine, topo),
-        "orchestrator/pipeline.py": gen_pipeline(digest, topo, owner, edges, ends, entry),
+        "orchestrator/pipeline.py": gen_pipeline(digest, topo, owner, edges, ends,
+                                                 entry, readers),
+        **{f"agents/{r['id']}.py": gen_reader_module(r, digest) for r in readers},
         **{f"agents/{u['id']}.py": gen_agent_module(u, digest)
            for u in units if u["kind"] == "agent"},
         **{f"functions/{u['id']}.py": gen_function_module(u, digest)
@@ -498,7 +603,7 @@ def main():
         ap.error("give -o/--outdir, or --check to validate without writing")
 
     files, rep, units, entry = generate(digest, spine, topo)
-    files.update(gen_inits(units))
+    files.update(gen_inits(units, readers_of(topo)))
 
     print(f"validation ({len(rep.errors)} errors, {len(rep.warns)} warnings)")
     print(rep.render())

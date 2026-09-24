@@ -1,89 +1,156 @@
 {
-  "domain": "Health Insurance Claims",
-  "ns": "clm",
-  "rationale": "Four agents, not nineteen. The byActor grouping and the bySystem grouping agree on three clean seams: the claimant-facing steps touch only ClaimDB, NotificationSvc and DocumentStore; document checking is the sole consumer of OCRSvc and is machine-driven; appeals sit behind a different trust boundary and must not be decided by the adjuster who made the original call. Assessment stays as one agent because its six operations share the Claim lifecycle and the AssessmentSvc tool, and splitting review from scoring would hand two agents the same state. The four System operations are deterministic - a gateway result and a window expiry - so they are functions with no model in the loop. ClaimDB appears in 12 of 19 operations, which is evidence against splitting further, not for it. An orchestrator is enabled because four agents must hand work back and forth across the claim lifecycle.",
-  "orchestrator": {
-    "enabled": true,
-    "name": "Claim Orchestrator",
-    "policy": "Route by the claim's current state. Hand to assessment on submission, to documents when evidence arrives, to intake when the claimant must act, and to appeals only after a rejection is final. Never let appeals and assessment hold the same claim at once."
+ "domain": "Health Insurance Claims",
+ "ns": "clm",
+ "rationale": "Four agents, not nineteen. The byActor grouping and the bySystem grouping agree on three clean seams: the claimant-facing steps touch only ClaimDB, NotificationSvc and DocumentStore; document checking is the sole consumer of OCRSvc and is machine-driven; appeals sit behind a different trust boundary and must not be decided by the adjuster who made the original call. Assessment stays as one agent because its six operations share the Claim lifecycle and the AssessmentSvc tool, and splitting review from scoring would hand two agents the same state. The four System operations are deterministic - a gateway result and a window expiry - so they are functions with no model in the loop. ClaimDB appears in 12 of 19 operations, which is evidence against splitting further, not for it. An orchestrator is enabled because four agents must hand work back and forth across the claim lifecycle.",
+ "orchestrator": {
+  "enabled": true,
+  "name": "Claim Orchestrator",
+  "policy": "Route by the claim's current state. Hand to assessment on submission, to documents when evidence arrives, to intake when the claimant must act, and to appeals only after a rejection is final. Never let appeals and assessment hold the same claim at once."
+ },
+ "agents": [
+  {
+   "id": "intake",
+   "name": "Intake Agent",
+   "role": "Handles everything the claimant does: filing, supplying evidence, responding to an offer",
+   "prompt": "You handle claimant-facing steps of a health insurance claim. Collect what is needed, confirm the policy is active on the incident date, and never promise an outcome. When the claimant responds to a settlement offer, record the response exactly as given.",
+   "owns": [
+    "SubmitClaim",
+    "ResubmitInfo",
+    "AcceptSettlement",
+    "DeclineSettlement"
+   ],
+   "tools": [
+    "ClaimDB",
+    "NotificationSvc",
+    "DocumentStore"
+   ],
+   "why": "All four are performed by the Claimant and touch only ClaimDB, NotificationSvc and DocumentStore. No other unit needs claimant contact."
   },
-  "agents": [
-    {
-      "id": "intake",
-      "name": "Intake Agent",
-      "role": "Handles everything the claimant does: filing, supplying evidence, responding to an offer",
-      "prompt": "You handle claimant-facing steps of a health insurance claim. Collect what is needed, confirm the policy is active on the incident date, and never promise an outcome. When the claimant responds to a settlement offer, record the response exactly as given.",
-      "owns": ["SubmitClaim", "ResubmitInfo", "AcceptSettlement", "DeclineSettlement"],
-      "tools": ["ClaimDB", "NotificationSvc", "DocumentStore"],
-      "why": "All four are performed by the Claimant and touch only ClaimDB, NotificationSvc and DocumentStore. No other unit needs claimant contact."
-    },
-    {
-      "id": "documents",
-      "name": "Document Agent",
-      "role": "Checks uploaded evidence for authenticity and completeness",
-      "prompt": "You verify documents attached to a claim. Check readability, that the checksum is unique for the claim, and that the document type matches what was requested. Flag anything altered, duplicated or unreadable rather than guessing.",
-      "owns": ["VerifyDocument", "FlagInvalidDocument"],
-      "tools": ["DocumentStore", "OCRSvc"],
-      "why": "The only consumer of OCRSvc, and a disjoint tool set from every other unit. Machine-driven with no claim-level judgement."
-    },
-    {
-      "id": "assessment",
-      "name": "Assessment Agent",
-      "role": "Reviews the claim, scores it and decides approve, reject or request more information",
-      "prompt": "You assess health insurance claims. Review the evidence and the policy terms, record findings and a covered amount, and decide whether to approve, reject or request more information. State the policy clause behind any rejection. High-value and fraud-flagged claims require human approval before you proceed.",
-      "owns": ["StartReview", "RequestMoreInfo", "ApproveClaim", "RejectClaim", "StartAssessment", "CompleteAssessment"],
-      "tools": ["ClaimDB", "AssessmentSvc", "FraudSvc", "NotificationSvc", "PricingSvc"],
-      "why": "Six operations sharing the Claim and Assessment lifecycles and the AssessmentSvc tool. Splitting review from scoring would give two agents authority over the same state."
-    },
-    {
-      "id": "appeals",
-      "name": "Appeals Agent",
-      "role": "Reconsiders rejected claims independently of the original decision",
-      "prompt": "You reconsider rejected claims. Weigh only new material evidence against the original rejection reason. You must not simply restate the first decision; if the new evidence is material, overturn it. Every appeal outcome requires human sign-off.",
-      "owns": ["ReviewAppeal", "UpholdRejection", "OverturnRejection"],
-      "tools": ["ClaimDB", "AssessmentSvc", "NotificationSvc"],
-      "why": "A separate trust boundary: the agent that rejected a claim must not judge the appeal against it. Distinct actor (AppealReviewer) and a lifecycle that runs after the Claim one."
-    }
-  ],
-  "functions": [
-    {
-      "id": "payments",
-      "owns": ["ExecutePayment", "FailPayment"],
-      "tools": ["PaymentGateway", "LedgerSvc"],
-      "why": "by: System. The gateway returns settled or failed; there is no judgement for a model to add."
-    },
-    {
-      "id": "closure",
-      "owns": ["CloseApproved", "CloseRejected"],
-      "tools": ["ClaimDB"],
-      "why": "by: System. Closure follows mechanically from payment settling or the appeal window expiring."
-    }
-  ],
-  "routers": [
-    {
-      "state": "ClaimUnderReview",
-      "decidedBy": "assessment",
-      "rule": "Approve when the assessment is Completed and the fraud score is below threshold. Reject when a policy exclusion or breach is identified. Otherwise, when a required document is missing or Invalid, request more information."
-    },
-    {
-      "state": "DocumentUploaded",
-      "decidedBy": "documents",
-      "rule": "Verify when the file is readable and its checksum is unique for the claim. Flag invalid when it is unreadable, duplicated or shows signs of alteration."
-    },
-    {
-      "state": "SettlementProposed",
-      "decidedBy": "intake",
-      "rule": "Accept or decline strictly as the claimant responded, provided the offer has not expired. Never infer acceptance from silence."
-    },
-    {
-      "state": "PaymentScheduled",
-      "decidedBy": "payments",
-      "rule": "Paid when the gateway confirms transfer and a ledger entry is written. Failed when the gateway rejects the transfer or bank details do not verify."
-    },
-    {
-      "state": "AppealUnderAppealReview",
-      "decidedBy": "appeals",
-      "rule": "Overturn when new material evidence contradicts the original rejection reason. Uphold when no new material evidence is presented."
-    }
-  ]
+  {
+   "id": "documents",
+   "name": "Document Agent",
+   "role": "Checks uploaded evidence for authenticity and completeness",
+   "prompt": "You verify documents attached to a claim. Check readability, that the checksum is unique for the claim, and that the document type matches what was requested. Flag anything altered, duplicated or unreadable rather than guessing.",
+   "owns": [
+    "VerifyDocument",
+    "FlagInvalidDocument"
+   ],
+   "tools": [
+    "DocumentStore",
+    "OCRSvc"
+   ],
+   "why": "The only consumer of OCRSvc, and a disjoint tool set from every other unit. Machine-driven with no claim-level judgement."
+  },
+  {
+   "id": "assessment",
+   "name": "Assessment Agent",
+   "role": "Reviews the claim, scores it and decides approve, reject or request more information",
+   "prompt": "You assess health insurance claims. Review the evidence and the policy terms, record findings and a covered amount, and decide whether to approve, reject or request more information. State the policy clause behind any rejection. High-value and fraud-flagged claims require human approval before you proceed.",
+   "owns": [
+    "StartReview",
+    "RequestMoreInfo",
+    "ApproveClaim",
+    "RejectClaim",
+    "StartAssessment",
+    "CompleteAssessment"
+   ],
+   "tools": [
+    "ClaimDB",
+    "AssessmentSvc",
+    "FraudSvc",
+    "NotificationSvc",
+    "PricingSvc"
+   ],
+   "why": "Six operations sharing the Claim and Assessment lifecycles and the AssessmentSvc tool. Splitting review from scoring would give two agents authority over the same state."
+  },
+  {
+   "id": "appeals",
+   "name": "Appeals Agent",
+   "role": "Reconsiders rejected claims independently of the original decision",
+   "prompt": "You reconsider rejected claims. Weigh only new material evidence against the original rejection reason. You must not simply restate the first decision; if the new evidence is material, overturn it. Every appeal outcome requires human sign-off.",
+   "owns": [
+    "ReviewAppeal",
+    "UpholdRejection",
+    "OverturnRejection"
+   ],
+   "tools": [
+    "ClaimDB",
+    "AssessmentSvc",
+    "NotificationSvc"
+   ],
+   "why": "A separate trust boundary: the agent that rejected a claim must not judge the appeal against it. Distinct actor (AppealReviewer) and a lifecycle that runs after the Claim one."
+  },
+  {
+   "id": "status",
+   "name": "Status Agent",
+   "role": "Answers questions about where a claim stands and what is holding it up",
+   "prompt": "You answer questions about the progress of a claim. Say which state it is in, what is being waited on and who is waiting, in plain language. Quote the policy clause if a claim was rejected. Never estimate a date you have not been given, and never promise an outcome.",
+   "owns": [],
+   "reads": [
+    "Claim",
+    "Document",
+    "Assessment",
+    "Settlement",
+    "Payment",
+    "Appeal"
+   ],
+   "tools": [
+    "ClaimDB",
+    "AssessmentSvc"
+   ],
+   "why": "Answering changes nothing, so it owns no transition. It is separated from the acting agents so a question can never move a claim by accident."
+  }
+ ],
+ "functions": [
+  {
+   "id": "payments",
+   "owns": [
+    "ExecutePayment",
+    "FailPayment"
+   ],
+   "tools": [
+    "PaymentGateway",
+    "LedgerSvc"
+   ],
+   "why": "by: System. The gateway returns settled or failed; there is no judgement for a model to add."
+  },
+  {
+   "id": "closure",
+   "owns": [
+    "CloseApproved",
+    "CloseRejected"
+   ],
+   "tools": [
+    "ClaimDB"
+   ],
+   "why": "by: System. Closure follows mechanically from payment settling or the appeal window expiring."
+  }
+ ],
+ "routers": [
+  {
+   "state": "ClaimUnderReview",
+   "decidedBy": "assessment",
+   "rule": "Approve when the assessment is Completed and the fraud score is below threshold. Reject when a policy exclusion or breach is identified. Otherwise, when a required document is missing or Invalid, request more information."
+  },
+  {
+   "state": "DocumentUploaded",
+   "decidedBy": "documents",
+   "rule": "Verify when the file is readable and its checksum is unique for the claim. Flag invalid when it is unreadable, duplicated or shows signs of alteration."
+  },
+  {
+   "state": "SettlementProposed",
+   "decidedBy": "intake",
+   "rule": "Accept or decline strictly as the claimant responded, provided the offer has not expired. Never infer acceptance from silence."
+  },
+  {
+   "state": "PaymentScheduled",
+   "decidedBy": "payments",
+   "rule": "Paid when the gateway confirms transfer and a ledger entry is written. Failed when the gateway rejects the transfer or bank details do not verify."
+  },
+  {
+   "state": "AppealUnderAppealReview",
+   "decidedBy": "appeals",
+   "rule": "Overturn when new material evidence contradicts the original rejection reason. Uphold when no new material evidence is presented."
+  }
+ ]
 }

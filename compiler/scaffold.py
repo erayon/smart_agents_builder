@@ -105,6 +105,7 @@ def pipeline_smoke_test(digest, topo, units, entry) -> str:
     """Structure only. In agent granularity nothing executes until the unit
     handlers are implemented, so asserting a full run would just assert
     NotImplementedError."""
+    readers = [r["id"] for r in pipeline_gen.readers_of(topo)]
     ids = [u["id"] for u in units]
     hitl = sorted({u["id"] for u in units for o in digest["operations"]
                    if o["n"] in u["owns"] and o.get("hitl")})
@@ -126,12 +127,24 @@ from orchestrator.models import *  # noqa: F401,F403
 
 EXPECTED_UNITS = {ids!r}
 HUMAN_APPROVAL_UNITS = {hitl!r}
+QUERY_AGENTS = {readers!r}
 
 
 def test_graph_compiles():
     app = build_graph()
     nodes = {{n for n in app.get_graph().nodes if not n.startswith("__")}}
     assert nodes == set(EXPECTED_UNITS), f"expected {{EXPECTED_UNITS}}, got {{sorted(nodes)}}"
+
+
+def test_read_only_agents_are_outside_the_lifecycle():
+    """A question must not be able to advance anything."""
+    from orchestrator.pipeline import QUERY_GRAPHS
+    nodes = {{n for n in build_graph().get_graph().nodes if not n.startswith("__")}}
+    for name in QUERY_AGENTS:
+        assert name not in nodes, f"{{name}} is read-only but sits in the lifecycle graph"
+        assert name in QUERY_GRAPHS, f"{{name}} has no query graph"
+        q = QUERY_GRAPHS[name]()
+        assert {{n for n in q.get_graph().nodes if not n.startswith("__")}} == {{name}}
 
 
 def test_entry_is_wired():

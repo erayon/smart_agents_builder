@@ -34,7 +34,8 @@ They will disagree. Where they agree strongly, that is a real seam.
    function owns its transition.
 
 Every operation in the digest must appear in exactly one `owns` list, across
-`agents` and `functions` combined. None twice, none missing.
+`agents` and `functions` combined. None twice, none missing. A read-only agent
+is the one exception: it owns nothing and declares `reads` instead.
 
 ## How many agents
 
@@ -59,6 +60,34 @@ restatement of its name is not justified.
 
 Add an `orchestrator` only when three or more agents must be sequenced or
 must hand work back and forth. Two cooperating agents rarely need one.
+
+## Read-only agents
+
+Some questions change nothing. "Where is my claim?" reads a state and answers;
+it starts nothing and advances nothing. That is an agent, but it owns no
+operations:
+
+```json
+{ "id": "status", "name": "Status Agent",
+  "role": "Answers questions about where a claim stands",
+  "prompt": "...",
+  "owns": [],
+  "reads": ["Claim", "Document", "Assessment"],
+  "tools": ["ClaimDB"],
+  "why": "Answering changes nothing, so it owns no transition." }
+```
+
+Give one to a domain where people will ask about progress. Do **not** hand the
+question to an acting agent instead: an agent that can both answer and act can
+move a claim while answering a question about it.
+
+A read-only agent is not part of the lifecycle graph. It gets its own, entered
+when a question arrives rather than when work does. Its tools are drawn from
+the systems that touch the entities in `reads`, so it can look at exactly what
+it answers about and no more.
+
+Only agents may be read-only. A function is a rule that runs; if it changes
+nothing it should not exist.
 
 ## Tools
 

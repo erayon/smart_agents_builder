@@ -76,7 +76,8 @@
             "items": {
               "type": "string"
             },
-            "minItems": 1
+            "minItems": 0,
+            "description": "Operations this agent performs. May be empty for a read-only agent, which must then declare 'reads'."
           },
           "tools": {
             "type": "array",
@@ -88,6 +89,13 @@
             "type": "string",
             "minLength": 20,
             "description": "The cohesion evidence for this grouping."
+          },
+          "reads": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Entities a read-only agent may read. Answering a question changes no state, so such an agent owns no operations."
           }
         }
       }

@@ -172,6 +172,22 @@ orchestrator.
 Operations with `by: System` become **functions, not agents**. A model has no
 business deciding whether a bank transfer settled.
 
+### Read-only agents
+
+Some questions change nothing. An agent that answers "where is my claim?"
+owns no operations and declares `reads` instead:
+
+```json
+{"id": "status", "owns": [], "reads": ["Claim", "Assessment"], "tools": ["ClaimDB"]}
+```
+
+It is kept **out of the lifecycle graph** and given its own, entered when a
+question arrives rather than when work does — an agent that can both answer and
+act can move a claim while being asked about one. Its tools are drawn from the
+systems touching the entities it reads, so it sees exactly what it answers
+about. Only agents may be read-only; a function that changes nothing should not
+exist.
+
 ### Where things come from
 
 An operation's `from` and `to` must belong to one entity, so the moment a
@@ -242,20 +258,15 @@ What has been exercised, as opposed to written.
 
 ## Known gaps
 
-1. **Read-only agents cannot be expressed.** `topology.schema.json` requires
-   `owns` to have at least one operation, so an agent that only answers "where
-   is my claim?" — which changes no state — has nowhere to live. Two separate
-   planning runs hit this independently.
-
-2. **`temperature=0` is not reproducible on Groq.** Two runs of one domain, same
+1. **`temperature=0` is not reproducible on Groq.** Two runs of one domain, same
    prompt and same input, gave `6E 12S 10O` and `5E 10S 10O` — different models,
    different hashes. The setting is applied; the provider does not honour it as
    determinism. Do not assume re-running gives the same schema.
 
-3. **The viewer only reads the domain graph**, not the agent topology, which is
+2. **The viewer only reads the domain graph**, not the agent topology, which is
    now the more interesting artifact.
 
-4. **The pipeline has outgrown Groq's free tier.** A correctly sized schema
+3. **The pipeline has outgrown Groq's free tier.** A correctly sized schema
    averages ~9,700 output tokens against an 8,000 TPM cap. That is arithmetic,
    not a bug — and an argument for the Claude Code path.
 

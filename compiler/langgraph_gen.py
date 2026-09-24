@@ -49,16 +49,31 @@ def validate_topology(digest, topo, rep: Report):
                 rep.err("T3", f"operation '{op}' owned twice ({owner[op]} and {u['id']})")
             else:
                 owner[op] = u["id"]
-        if not u.get("owns"):
-            rep.err("T4", f"{u['id']}: owns no operations")
-        # least privilege: tools must come from this unit's own operations
+        reads = u.get("reads", [])
+        if not u.get("owns") and not reads:
+            rep.err("T4", f"{u['id']}: owns no operations and reads nothing")
+        if reads and kind == "function":
+            rep.err("T15", f"{u['id']}: only an agent can be read-only")
+        entities = {o["e"] for o in digest["operations"]}
+        for r in reads:
+            if r not in entities:
+                rep.err("T16", f"{u['id']}: reads unknown entity '{r}'")
+
+        # Least privilege. A working unit's tools come from its own operations.
+        # A read-only agent has none, so they come from the systems that touch
+        # the entities it reads - it can look at exactly what it answers about.
         allowed = {s for op in u.get("owns", []) if op in ops for s in ops[op].get("sys", [])}
+        if reads:
+            allowed |= {s for o in digest["operations"] if o["e"] in reads
+                        for s in o.get("sys", [])}
         for t in u.get("tools", []):
             if t not in systems:
                 rep.err("T5", f"{u['id']}: tool '{t}' is not a system in this domain")
             elif t not in allowed:
-                rep.err("T6", f"{u['id']}: tool '{t}' is touched by none of its operations")
-        if kind == "agent":
+                where = ("the entities it reads" if reads and not u.get("owns")
+                         else "its own operations")
+                rep.err("T6", f"{u['id']}: tool '{t}' is touched by none of {where}")
+        if kind == "agent" and u.get("owns"):
             ents = {ops[op]["e"] for op in u.get("owns", []) if op in ops}
             if len(ents) > 2:
                 rep.warn("T7", f"{u['id']}: spans {len(ents)} entities ({', '.join(sorted(ents))}); "
@@ -89,12 +104,13 @@ def validate_topology(digest, topo, rep: Report):
             rep.err("T12", f"decision point '{s}' has no router")
 
     # anti fan-out
-    n_ops, n_ag = len(ops), len(agents)
+    # a read-only agent does no work, so it should not flatter the ratio
+    n_ops, n_ag = len(ops), len([a for a in agents if a.get("owns")])
     if n_ag and n_ops / n_ag < 2:
         rep.warn("T13", f"{n_ag} agents for {n_ops} operations; one agent per operation "
                         f"is a known anti-pattern - justify or merge")
-    if len(agents) >= 3 and not topo.get("orchestrator", {}).get("enabled"):
-        rep.warn("T14", f"{len(agents)} agents with no orchestrator; "
+    if n_ag >= 3 and not topo.get("orchestrator", {}).get("enabled"):
+        rep.warn("T14", f"{n_ag} agents with no orchestrator; "
                         f"orchestrator-worker is the common production shape")
     return owner
 
