@@ -43,8 +43,11 @@ and encode your assumption in the `title`.
 \* An entity may omit `r` only if another entity relates **to** it. Every
 entity must appear in at least one relation, in one direction or the other.
 
-Entities without a lifecycle simply omit `s`, `s0`, `sT` — reference data such
-as `Customer` or `Policy` usually has none. Do not invent a lifecycle to pad.
+Most **operational** entities have a lifecycle — the things that get created,
+worked on and finished. Only pure reference data omits `s`, `s0`, `sT`:
+`Customer`, `Policy`, `Ward`. If an entity has a status anyone would ask about
+("where is my order?"), it has a lifecycle. Expect **at least half** your
+entities to have one. Do not invent a lifecycle for reference data.
 
 ### States (`S`)
 One flat map for the whole document: state name → description. Reuse a name
@@ -84,13 +87,29 @@ downstream signal.
    modelling mistake, not a valid minimal answer.
 
 ## Sizing
-Model the domain at the granularity a practitioner would recognise. As a guide,
-a typical business domain lands at 6–12 entities, 15–30 states and 15–35
-operations. Go smaller if the domain genuinely is smaller. Do not split one
-concept into synonyms to inflate the count, and do not collapse distinct
-concepts to deflate it. Never emit placeholder entities such as `Thing`,
-`Object` or `GenericEntity`.
+
+Build it up per entity rather than aiming at a total:
+
+- each **lifecycle entity** gets **4–7 states** — not just Draft and Done, but
+  the intermediate ones a practitioner would name, including the unhappy paths
+  (rejected, failed, cancelled, on hold)
+- each lifecycle entity gets **one operation per transition it can make**,
+  which is typically **4–8**, including the branches out of a decision state
+- a domain with 6 entities, 4 of them with lifecycles, therefore lands near
+  **20 states and 22 operations**
+
+A domain that comes out at 8 or 10 operations is under-modelled: you have
+almost certainly given entities two states where they have five, or skipped
+the failure paths. Before emitting, count your operations. If the total is
+below the number of states, you have missed transitions — go back and add
+them.
+
+Go smaller only if the domain genuinely is smaller. Do not split one concept
+into synonyms to inflate the count, and never emit placeholder entities such
+as `Thing`, `Object` or `GenericEntity`.
 
 ## Before you answer
-Silently check rules 1–6 against your own spine, especially reachability and
-deadlocks, then emit the JSON object.
+Silently check rules 1–7 against your own spine, especially reachability and
+deadlocks. Then count: operations should be at least as many as states, and at
+least half your entities should have a lifecycle. If not, add the transitions
+you skipped before emitting the JSON object.

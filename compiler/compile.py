@@ -194,6 +194,27 @@ def validate(spine, rep):
             rep.err("A6", f"{name}: isolated entity - no relation to or from any "
                           f"other entity (add it to 'r', or reference it from one)")
 
+    # sizing: advisory, but the eval showed models under-modelling badly
+    # against the prompt's own guidance, so make it visible rather than silent.
+    lifecycle = [e for e in ents.values() if e.get("s")]
+    n_states = sum(len(e.get("s", [])) for e in ents.values())
+    if ents and len(lifecycle) < len(ents) / 2:
+        rep.warn("SIZE", f"only {len(lifecycle)} of {len(ents)} entities have a lifecycle; "
+                         f"most operational entities should have one")
+    # A purely linear lifecycle needs only states-1 transitions, so "ops < states"
+    # is normal and not a signal. What does signal under-modelling is a lifecycle
+    # with no branch at all: no failure path, no decision, one way through.
+    for e in lifecycle:
+        fan = {s: sum(1 for o in ops if o.get("e") == e["n"] and o.get("f") == s)
+               for s in e["s"]}
+        if e["s"] and max(fan.values(), default=0) < 2 and len(e["s"]) > 2:
+            rep.warn("SIZE", f"{e['n']}: lifecycle is entirely linear - no state has two "
+                             f"ways out, so there is no failure or rejection path")
+    for e in lifecycle:
+        if len(e["s"]) < 3:
+            rep.warn("SIZE", f"{e['n']}: only {len(e['s'])} states; a lifecycle worth "
+                             f"modelling usually has 4-7")
+
     return ents, sdesc, ops, out_edges
 
 

@@ -42,7 +42,73 @@ def slugify(text: str) -> str:
     return (s[:40] or "domain").rstrip("-")
 
 
+def plan_main(argv):
+    """Stage 2: digest -> agent topology -> runnable LangGraph module."""
+    _load_env()
+    from builder.providers import get_llm
+
+    ap = argparse.ArgumentParser(prog="python -m builder plan",
+                                 description="digest.json -> agent topology -> graph.py")
+    ap.add_argument("digest", help="a .digest.json from stage 1")
+    ap.add_argument("-p", "--provider", default=None)
+    ap.add_argument("-m", "--model", default=None)
+    ap.add_argument("-t", "--temperature", type=float, default=0.0)
+    ap.add_argument("-o", "--outdir", default="out")
+    ap.add_argument("-n", "--name", default=None)
+    ap.add_argument("--max-repairs", type=int, default=3)
+    ap.add_argument("--quiet", action="store_true")
+    a = ap.parse_args(argv)
+
+    digest = json.loads(pathlib.Path(a.digest).read_text())
+    say = event_printer(a.quiet)
+    try:
+        llm = get_llm(a.provider, a.model, a.temperature)
+    except Exception as e:
+        print(f"{C['red']}{e}{C['x']}", file=sys.stderr)
+        return 2
+
+    from builder.topology_builder import build_topology
+    say("call", f"{C['b']}provider{C['x']} {llm._sab_provider}/{llm._sab_model}  "
+                f"domain={digest['domain']}")
+    res = build_topology(digest, llm, max_repairs=a.max_repairs, on_event=say)
+
+    stem = a.name or pathlib.Path(a.digest).name.replace(".digest.json", "")
+    out = pathlib.Path(a.outdir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    if not res.ok:
+        print(f"\n{C['red']}FAILED after {res.attempts} attempts{C['x']}", file=sys.stderr)
+        for e in res.errors[:20]:
+            print(f"  {e}", file=sys.stderr)
+        if res.topology:
+            (out / f"{stem}.topology.invalid.json").write_text(json.dumps(res.topology, indent=1))
+        return 1
+
+    (out / f"{stem}.topology.json").write_text(json.dumps(res.topology, indent=1))
+    (out / f"{stem}_graph.py").write_text(res.source)
+    t = res.topology
+    tools = {s for o in digest["operations"] for s in o.get("sys", [])}
+    print(f"\n{C['grn']}{C['b']}OK{C['x']}  {len(t['agents'])} agents  "
+          f"{len(t['functions'])} functions  {len(tools)} tools  "
+          f"{len(t['routers'])} routers  attempts={res.attempts}")
+    for a_ in t["agents"]:
+        print(f"  {C['cya']}{a_['id']:<14}{C['x']} {len(a_['owns']):>2} ops  "
+              f"tools={','.join(a_['tools'])}")
+    for f_ in t["functions"]:
+        print(f"  {C['dim']}{f_['id']:<14}{C['x']} {len(f_['owns']):>2} ops  (deterministic)")
+    if res.usage:
+        print(f"{C['dim']}tokens: " + "  ".join(f"{k}={v}" for k, v in res.usage.items()) + C["x"])
+    for w in res.warnings[:10]:
+        print(f"{C['yel']}  WARN {w}{C['x']}")
+    print(f"  topology     {out / f'{stem}.topology.json'}")
+    print(f"  graph        {out / f'{stem}_graph.py'}")
+    return 0
+
+
 def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "plan":
+        return plan_main(argv[1:])
     _load_env()
     from builder.providers import get_llm, available_providers, PROVIDERS
 
