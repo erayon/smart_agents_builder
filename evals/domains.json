@@ -1,0 +1,7 @@
+[
+ {"id":"claims","text":"A health insurer processes claims. Members file claims against a policy, attach supporting documents, an adjuster assesses them, a settlement is offered and paid, and rejected claims can be appealed."},
+ {"id":"procurement","text":"A company runs procurement. It issues an RFP, suppliers submit proposals, proposals are scored on a scorecard, an award decision is made, and a purchase order is raised and received."},
+ {"id":"onboarding","text":"Employee onboarding. A candidate receives a job offer, accepts it, passes a background check, is issued equipment, assigned a training plan, and completes their first day."},
+ {"id":"lending","text":"A bank issues personal loans. Applicants submit an application with income documents, credit is scored, an underwriter approves or declines, funds are disbursed, and repayments are tracked with arrears handling."},
+ {"id":"logistics","text":"A freight company books shipments. Each shipment is routed, loaded onto a truck, tracked in transit and delivered with proof of delivery. Damaged goods raise a claim."}
+]

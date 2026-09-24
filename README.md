@@ -90,6 +90,39 @@ resident with a 16k context) spills to CPU and drops to a crawl — check with
 `qwen3:4b-instruct`, `qwen2.5-coder:3b`, `llama3.2:3b`. Raising `OLLAMA_NUM_CTX`
 also grows the KV cache, so context and model size compete for the same VRAM.
 
+## Viewing and validating a schema
+
+`viewer/` is a dependency-free HTML page that renders any compiled `.jsonld`
+from this pipeline. No build step, no CDN, no network — the file never leaves
+your machine.
+
+```bash
+xdg-open viewer/index.html          # then drag a .jsonld onto the page
+# or, to deep-link a file:
+python3 -m http.server 8000
+#   http://localhost:8000/viewer/?src=../examples/claims.jsonld
+#   http://localhost:8000/viewer/?src=../out/hospital2.jsonld
+```
+
+It shows:
+
+- **a validation panel** that re-implements the Python validator in the
+  browser — reachability, deadlocks, terminal states with outgoing edges,
+  dangling relation targets. Verified to agree with `compiler/compile.py` on
+  the same inputs.
+- **a state-machine diagram per entity**, auto-laid-out by BFS rank from the
+  initial state. Initial states are outlined, terminal states dashed,
+  decision points dotted; human-in-the-loop transitions are drawn in a
+  distinct colour and high-risk ones dashed.
+- **decision points** listed with their branches — these are the conditional
+  edges of the eventual LangGraph.
+- **actors and systems** ranked by how many operations touch them, which is
+  the evidence for how many agents and tools the domain actually needs.
+- **entities, relations and cardinalities**, plus derived events.
+
+It is generic: it reads the `@graph`, not any particular domain, so it works
+on every schema this pipeline produces.
+
 ### Rate limits and oversized requests
 
 `builder/retry.py` handles both without configuration. It parses the
@@ -106,6 +139,26 @@ brought the same domain down to 1 attempt and 7,201 tokens.
 > spine through a tool-call argument, which roughly doubles its cost; if the
 > provider then fails the tool call, the builder falls back to chain mode
 > automatically.
+
+### Evals
+
+`evals/` scores the builder across five golden domains so prompt changes are
+measurable rather than felt. This is deliberate: the v3.2 assistant this
+replaces sat at version 3.2 with a 2.8-star rating and no way to tell whether
+any edit had helped.
+
+```bash
+.venv/bin/python evals/run_eval.py -p groq --pause 50          # all domains
+.venv/bin/python evals/run_eval.py -p groq -d claims -r 3      # determinism
+.venv/bin/python evals/run_eval.py -p groq --baseline evals/report.json
+```
+
+Per run it records validity, repair attempts, node counts, decision points,
+wall time, output tokens, and **coverage** - the share of operations carrying
+the actor and system fields stage 2 needs. With `-r > 1` it hashes each spine
+and reports whether `temperature=0` actually produced identical output.
+
+`--pause` spaces calls out to stay under a per-minute token quota.
 
 ### Offline test
 
@@ -137,7 +190,7 @@ discouraged.
 | A3 | Squatted `ontology.<domain>.org` | `urn:ctxstudio:<ns>:` | compiler |
 | A4 | `via` declared, never used | removed | compiler |
 | A5 | Undeclared terms silently dropped on expansion | `@version: 1.1` + `@vocab` | compiler |
-| A6 | No document identity or version | `schema:Dataset` node **inside** `@graph` (a root `@id` would make it a named graph) | compiler |
+| A6 | No document identity or version; isolated entities merely warned | `schema:Dataset` node **inside** `@graph` (a root `@id` would make it a named graph); isolated entities are now an **error**, checked in both relation directions | compiler |
 | B7 | `emitsEvent` pointed at State nodes; no Event type | real `Event` nodes, derived from `O[].emit` | compiler |
 | B8 | State machines could be unreachable, deadlocked, cross-wired; Operations had no owning entity | `ownedBy` + 6 enforced rules | validator |
 | B9 | Operations had no actor, system, HITL or risk | `by`, `sys`, `hitl`, `risk` | spine |
@@ -170,3 +223,30 @@ examples/claims.spine.json        worked example, 8 entities
 examples/claims.jsonld            compiled, 65 nodes, 517 triples, 0 blank nodes
 examples/claims.digest.json       stage 2 input
 ```
+
+
+## Verification status
+
+What has actually been exercised, as opposed to written.
+
+| area | status |
+|---|---|
+| Compiler output as RDF | **verified** - 65 nodes, 517 triples, 0 blank nodes, via pyld |
+| Validator catches planted defects | **verified** - 5 injected bugs, 8 errors, exit 1 |
+| Repair loop | **verified** offline, no key or network (`tests/test_loop.py`) |
+| Viewer validator agrees with the Python one | **verified** on three files including a broken one |
+| Live generation, Groq | **verified** - `openai/gpt-oss-120b`, one attempt, clean output |
+| Eval harness across 5 domains | **verified** - see `evals/report.json` |
+| Determinism at `temperature=0` | **verified** - see `evals/determinism.json` |
+| Live generation: xAI Grok, Anthropic, OpenAI, Google | **not verified** - wired, packages import, no key available |
+| Ollama | **partial** - runs, but a 4 GB GPU cannot hold a useful model plus a 16k context; no run completed |
+| Agent mode (`--mode agent`) | **not verified** - exceeds an 8000 TPM quota and falls back to chain mode; the fallback is verified, the agent path is not |
+| Constrained decoding | **not implemented** - `spec/spine.schema.json` validates after generation, it does not constrain it |
+
+## Not done
+
+- **Stage 2**: `digest.json` to LangGraph topology. `prompts/02_agent_planner.md`
+  does not exist yet.
+- **SHACL shapes** for validating the compiled JSON-LD as RDF. The Python and
+  JavaScript validators cover the same rules today, which is duplication that
+  SHACL would remove.

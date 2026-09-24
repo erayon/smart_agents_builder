@@ -181,16 +181,18 @@ def validate(spine, rep):
             if st not in e.get("sT", []) and not fanout:
                 rep.err("B8", f"{name}.{st}: non-terminal state has no outgoing operation (deadlock)")
 
-    # isolated nodes
-    linked = set()
+    # connectivity: every entity must take part in at least one relation, in
+    # either direction. v3.2 banned isolated nodes outright and it was right to
+    # - a business object nothing references is almost always a modelling miss.
+    related = set()
     for name, e in ents.items():
         for r in e.get("r", []):
-            linked.add(name); linked.add(r[0])
-        if e.get("s"):
-            linked.add(name)
-    for name in ents:
-        if name not in linked:
-            rep.warn("A6", f"{name}: isolated entity (no states, no relations)")
+            related.add(name)
+            related.add(r[0])
+    for name, e in ents.items():
+        if name not in related:
+            rep.err("A6", f"{name}: isolated entity - no relation to or from any "
+                          f"other entity (add it to 'r', or reference it from one)")
 
     return ents, sdesc, ops, out_edges
 

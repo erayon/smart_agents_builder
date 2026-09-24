@@ -38,7 +38,10 @@ and encode your assumption in the `title`.
 | `s` | no | lifecycle state names, **unqualified** (`Draft`, not `OrderDraft`) |
 | `s0` | if `s` | initial state, must be in `s` |
 | `sT` | if `s` | terminal states, must be in `s` |
-| `r` | no | relations as `[[TargetEntity, "1-1\|1-n\|n-1\|n-n", "label"], ...]` |
+| `r` | yes* | relations as `[[TargetEntity, "1-1\|1-n\|n-1\|n-n", "label"], ...]` |
+
+\* An entity may omit `r` only if another entity relates **to** it. Every
+entity must appear in at least one relation, in one direction or the other.
 
 Entities without a lifecycle simply omit `s`, `s0`, `sT` — reference data such
 as `Customer` or `Policy` usually has none. Do not invent a lifecycle to pad.
@@ -76,6 +79,9 @@ downstream signal.
 4. An operation's `f` and `t` must both belong to the state list of `e`.
 5. Relation targets must be entities that exist in `E`; cardinality must be one of the four allowed values.
 6. Entity and operation names must be unique.
+7. No isolated entities. Every entity must take part in at least one relation,
+   as source or target. A business object that nothing references is a
+   modelling mistake, not a valid minimal answer.
 
 ## Sizing
 Model the domain at the granularity a practitioner would recognise. As a guide,

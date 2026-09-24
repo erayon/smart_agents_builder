@@ -22,6 +22,7 @@ _TOO_BIG = ("request too large", "413", "reduce your message size",
             "maximum context length", "context_length_exceeded")
 
 MIN_TOKENS = 2048
+MAX_GROWTH = 32000
 
 
 def _num(s: str) -> int:
@@ -92,3 +93,24 @@ def invoke_with_retry(model, messages, max_attempts: int = 6, say=None):
                 continue
             raise
     raise RuntimeError(f"gave up after {max_attempts} attempts: {last}") from last
+
+
+def grow_budget(model, say=None) -> bool:
+    """Raise max_tokens after a truncated response.
+
+    A truncated spine is not a modelling error and re-prompting at the same
+    budget just truncates again, burning a repair attempt. Grow the budget
+    instead, up to MAX_GROWTH.
+    """
+    say = say or (lambda *a: None)
+    m = _target(model)
+    attr, cur = _get_max(m)
+    if attr is None or cur >= MAX_GROWTH:
+        return False
+    new = min(MAX_GROWTH, int(cur * 1.6))
+    try:
+        setattr(m, attr, new)
+    except Exception:
+        return False
+    say("fail", f"  output truncated; {attr} {cur} -> {new}")
+    return True

@@ -19,7 +19,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from compiler.compile import validate, compile_jsonld, build_digest, Report  # noqa: E402
-from builder.retry import invoke_with_retry                                  # noqa: E402
+from builder.retry import invoke_with_retry, grow_budget                     # noqa: E402
 
 PROMPT_PATH = ROOT / "prompts" / "01_schema_builder_v4.md"
 SCHEMA_PATH = ROOT / "spec" / "spine.schema.json"
@@ -132,6 +132,8 @@ def build_spine(description: str, llm, max_repairs: int = 3,
         try:
             spine = extract_json(text)
         except Exception as e:
+            if "truncated" in str(e):
+                grow_budget(llm, say)
             errs = [f"parse: {e}"]
             res.log.append(f"attempt {attempt}: {errs[0]}")
             say("fail", errs[0])

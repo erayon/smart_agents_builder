@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Schema Viewer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title">Schema Viewer</h1>
+    <span class="muted sm" id="src"></span>
+  </header>
+
+  <section id="empty">
+    <p class="muted">Drop a compiled <code>.jsonld</code> from this pipeline anywhere on
+    the page, or load one below. Everything runs locally — no file leaves your machine.</p>
+    <div class="drop">
+      <p class="muted">Drag a <code>.jsonld</code> here</p>
+      <label class="btn" for="file">Choose file</label>
+      <input id="file" type="file" accept=".json,.jsonld,application/json">
+      <p class="muted sm" style="margin-top:14px">
+        Or open with <code>?src=../examples/claims.jsonld</code> when served over HTTP.
+      </p>
+    </div>
+    <p id="err"></p>
+  </section>
+
+  <main id="main" hidden>
+    <div class="stats" id="stats"></div>
+    <div class="panel" id="validation"></div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" data-tab="lifecycles" role="tab" aria-selected="true">Lifecycles</button>
+      <button class="tab" data-tab="operations" role="tab" aria-selected="false">Operations &amp; decisions</button>
+      <button class="tab" data-tab="relations" role="tab" aria-selected="false">Entities &amp; relations</button>
+    </nav>
+    <div id="view"></div>
+  </main>
+</div>
+<script src="app.js"></script>
+<script src="ui.js"></script>
+</body>
+</html>
