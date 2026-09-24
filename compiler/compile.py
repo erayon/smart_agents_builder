@@ -18,7 +18,7 @@ Fixes carried by this compiler (see README gap list):
   B8 Operations declare their owning Entity; reachability + liveness enforced
   B10 typed, cardinal relations preserved alongside visual relatesTo
 """
-import argparse, json, sys, datetime
+import argparse, json, pathlib, sys, datetime
 from collections import OrderedDict, defaultdict, deque
 
 CARDS = {"1-1", "1-n", "n-1", "n-n"}
@@ -345,6 +345,8 @@ def main():
     ap.add_argument("spine")
     ap.add_argument("-o", "--outdir", default=".")
     ap.add_argument("--strict", action="store_true", help="exit 1 on errors")
+    ap.add_argument("--jsonld-out", help="exact path for the JSON-LD (overrides naming)")
+    ap.add_argument("--digest-out", help="exact path for the digest (overrides naming)")
     a = ap.parse_args()
 
     raw = open(a.spine).read()
@@ -357,8 +359,12 @@ def main():
     stem = a.spine.split("/")[-1].replace(".spine.json", "").replace(".json", "")
     jl = json.dumps(doc, indent=2)
     dg = json.dumps(digest, indent=1)
-    open(f"{a.outdir}/{stem}.jsonld", "w").write(jl)
-    open(f"{a.outdir}/{stem}.digest.json", "w").write(dg)
+    jl_path = a.jsonld_out or f"{a.outdir}/{stem}.jsonld"
+    dg_path = a.digest_out or f"{a.outdir}/{stem}.digest.json"
+    for pth in (jl_path, dg_path):
+        pathlib.Path(pth).parent.mkdir(parents=True, exist_ok=True)
+    open(jl_path, "w").write(jl)
+    open(dg_path, "w").write(dg)
 
     print(f"validation ({len(rep.errors)} errors, {len(rep.warns)} warnings)")
     print(rep.render())

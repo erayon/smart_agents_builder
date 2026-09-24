@@ -15,8 +15,14 @@ from compiler.compile import Report, qstate                       # noqa: E402
 
 
 def snake(name: str) -> str:
-    s = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+    """CamelCase to snake_case, keeping acronyms intact.
+
+    ClaimDB -> claim_db, OCRSvc -> ocr_svc, not claim_d_b / o_c_r_svc.
+    """
+    s = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
+    s = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s).lower()
     s = re.sub(r"[^a-z0-9_]", "_", s)
+    s = re.sub(r"_+", "_", s).strip("_")
     return s + "_" if keyword.iskeyword(s) else s
 
 
@@ -137,19 +143,29 @@ class DomainState(TypedDict, total=False):
 '''
 
 RUNNER = '''
-def run_operation(state: DomainState, *, op: str, owner: str, kind: str,
-                  to_state: str, tools: list[str]) -> dict:
-    """Default effect of any operation: record it and advance the state.
+# ---------------------------------------------------------------- effects
+# handlers.py is yours and is never regenerated. When it exists it replaces
+# the default below, so graph.py can be rebuilt at any time without touching
+# your implementations.
+def _default_run_operation(state: DomainState, *, op: str, owner: str,
+                           kind: str, to_state: str, tools: list[str]) -> dict:
+    """Record the operation and advance the state.
 
-    Replace this with real work. For an agent node, call the model with
-    AGENT_PROMPTS[owner] and the tools listed. For a function node, call the
-    system directly - no model involved.
+    Implement the real thing in handlers.py: for an agent node call the model
+    with AGENT_PROMPTS[owner] and the tools listed; for a function node call
+    the system directly, with no model involved.
     """
     return {
         "status": to_state,
         "history": [*state.get("history", []),
                     {"op": op, "owner": owner, "kind": kind, "tools": tools}],
     }
+
+
+try:
+    from handlers import run_operation  # type: ignore
+except ImportError:
+    run_operation = _default_run_operation
 
 
 '''
@@ -169,7 +185,17 @@ def {snake(s)}(action: str, **kwargs: Any) -> Any:
     """{s}. Used by: {', '.join(sorted(used[s]))}."""
     raise NotImplementedError("wire {s} to a real client")''')
     entries = ", ".join("%r: %s" % (s, snake(s)) for s in systems)
-    lines.append("\n\nTOOLS = {%s}\n\n" % entries)
+    lines.append("""
+
+# A project scaffolded by compiler/scaffold.py has a tools/ package holding
+# real implementations. It wins. These stubs only exist so a freshly generated
+# graph.py runs on its own.
+try:
+    from tools import TOOLS  # type: ignore
+except ImportError:
+    TOOLS = {%s}
+
+""" % entries)
     return "\n".join(lines)
 
 

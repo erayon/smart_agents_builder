@@ -31,6 +31,32 @@ deterministic constants. Measured on the same 8-entity claims domain:
 digest instead of an 8.3k JSON-LD blob. The v3.2 prompt shrank from 7.3k to
 4.2k chars too, since the compiler owns the format.
 
+## Two ways to run it
+
+**With Claude Code — no API key.** The only steps that need a model are
+authoring the spine and planning the topology, and Claude Code can do both.
+Everything else is deterministic Python.
+
+```
+/build-platform "we need a platform for processing supplier invoices" ./out/invoices
+  ... domain modeller runs, repairs until valid, then STOPS
+  ... you review the model in the viewer, edit schema/spine.json if needed
+/build-platform continue ./out/invoices
+  ... agent architect plans the topology, scaffolds the project, git commits
+```
+
+The output is a self-contained project with its own `CLAUDE.md`, so you can
+`cd` into it and keep working there in a fresh session. See
+`.claude/skills/build-platform/SKILL.md`.
+
+Why it stops for review: the validator proves a model is **well-formed**. It
+cannot prove it is **true**. Nothing in a brief says claims can be withdrawn
+or that payments over a threshold need two approvers - that lives in your
+head, and this is the cheapest moment to add it.
+
+**With an API key.** Same compilers, for CI, batch runs and colleagues who do
+not use Claude Code. See Quickstart below.
+
 ## Quickstart
 
 ```bash

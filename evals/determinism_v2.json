@@ -1,0 +1,36 @@
+{
+ "provider": "groq/openai/gpt-oss-120b",
+ "when": "2026-09-24 21:36",
+ "rows": [
+  {
+   "ok": false,
+   "attempts": 0,
+   "secs": 99.6,
+   "errors": [
+    "RuntimeError: gave up after 6 attempts: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01hty17"
+   ],
+   "domain": "claims",
+   "run": 1
+  },
+  {
+   "ok": false,
+   "attempts": 0,
+   "secs": 115.3,
+   "errors": [
+    "RuntimeError: gave up after 6 attempts: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01hty17"
+   ],
+   "domain": "claims",
+   "run": 2
+  },
+  {
+   "ok": false,
+   "attempts": 0,
+   "secs": 92.0,
+   "errors": [
+    "RuntimeError: gave up after 6 attempts: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01hty17"
+   ],
+   "domain": "claims",
+   "run": 3
+  }
+ ]
+}

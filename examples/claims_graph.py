@@ -32,7 +32,7 @@ def assessment_svc(action: str, **kwargs: Any) -> Any:
     """AssessmentSvc. Used by: CompleteAssessment, OverturnRejection, ReviewAppeal, StartAssessment, StartReview."""
     raise NotImplementedError("wire AssessmentSvc to a real client")
 
-def claim_d_b(action: str, **kwargs: Any) -> Any:
+def claim_db(action: str, **kwargs: Any) -> Any:
     """ClaimDB. Used by: AcceptSettlement, ApproveClaim, CloseApproved, CloseRejected, DeclineSettlement, OverturnRejection, RejectClaim, ResubmitInfo, ReviewAppeal, StartReview, SubmitClaim, UpholdRejection."""
     raise NotImplementedError("wire ClaimDB to a real client")
 
@@ -52,7 +52,7 @@ def notification_svc(action: str, **kwargs: Any) -> Any:
     """NotificationSvc. Used by: AcceptSettlement, DeclineSettlement, RejectClaim, RequestMoreInfo, SubmitClaim, UpholdRejection."""
     raise NotImplementedError("wire NotificationSvc to a real client")
 
-def o_c_r_svc(action: str, **kwargs: Any) -> Any:
+def ocr_svc(action: str, **kwargs: Any) -> Any:
     """OCRSvc. Used by: FlagInvalidDocument, VerifyDocument."""
     raise NotImplementedError("wire OCRSvc to a real client")
 
@@ -65,7 +65,13 @@ def pricing_svc(action: str, **kwargs: Any) -> Any:
     raise NotImplementedError("wire PricingSvc to a real client")
 
 
-TOOLS = {'AssessmentSvc': assessment_svc, 'ClaimDB': claim_d_b, 'DocumentStore': document_store, 'FraudSvc': fraud_svc, 'LedgerSvc': ledger_svc, 'NotificationSvc': notification_svc, 'OCRSvc': o_c_r_svc, 'PaymentGateway': payment_gateway, 'PricingSvc': pricing_svc}
+# A project scaffolded by compiler/scaffold.py has a tools/ package holding
+# real implementations. It wins. These stubs only exist so a freshly generated
+# graph.py runs on its own.
+try:
+    from tools import TOOLS  # type: ignore
+except ImportError:
+    TOOLS = {'AssessmentSvc': assessment_svc, 'ClaimDB': claim_db, 'DocumentStore': document_store, 'FraudSvc': fraud_svc, 'LedgerSvc': ledger_svc, 'NotificationSvc': notification_svc, 'OCRSvc': ocr_svc, 'PaymentGateway': payment_gateway, 'PricingSvc': pricing_svc}
 
 # ---------------------------------------------------------------- agents
 AGENT_PROMPTS: dict[str, str] = {
@@ -85,19 +91,29 @@ AGENT_TOOLS: dict[str, list[str]] = {
 }
 
 
-def run_operation(state: DomainState, *, op: str, owner: str, kind: str,
-                  to_state: str, tools: list[str]) -> dict:
-    """Default effect of any operation: record it and advance the state.
+# ---------------------------------------------------------------- effects
+# handlers.py is yours and is never regenerated. When it exists it replaces
+# the default below, so graph.py can be rebuilt at any time without touching
+# your implementations.
+def _default_run_operation(state: DomainState, *, op: str, owner: str,
+                           kind: str, to_state: str, tools: list[str]) -> dict:
+    """Record the operation and advance the state.
 
-    Replace this with real work. For an agent node, call the model with
-    AGENT_PROMPTS[owner] and the tools listed. For a function node, call the
-    system directly - no model involved.
+    Implement the real thing in handlers.py: for an agent node call the model
+    with AGENT_PROMPTS[owner] and the tools listed; for a function node call
+    the system directly, with no model involved.
     """
     return {
         "status": to_state,
         "history": [*state.get("history", []),
                     {"op": op, "owner": owner, "kind": kind, "tools": tools}],
     }
+
+
+try:
+    from handlers import run_operation  # type: ignore
+except ImportError:
+    run_operation = _default_run_operation
 
 
 # ---------------------------------------------------------------- nodes
