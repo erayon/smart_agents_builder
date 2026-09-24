@@ -164,12 +164,31 @@ def gen_models(digest, spine) -> str:
         if e.get("s"):
             lit = ", ".join(repr(s) for s in e["s"])
             L.append(f"    lifecycle_state: Literal[{lit}] | None = None")
-        if e.get("inv"):
-            L.append("")
-            L.append("    # invariants: " + " | ".join(e["inv"]))
+        L.append("")
+        L.append("")
+    # Invariants are business rules from the domain model. They were a trailing
+    # comment, which meant they reached a reader and nothing else; as data a
+    # handler can assert them.
+    inv = {e["n"]: e["inv"] for e in spine["E"] if e.get("inv")}
+    if inv:
+        L.append("INVARIANTS: dict[str, list[str]] = {")
+        for name, rules in inv.items():
+            L.append(f"    {name!r}: [")
+            for r in rules:
+                L.append(f"        {r!r},")
+            L.append("    ],")
+        L.append("}")
+        L.append("")
+        L.append('"""Rules that must hold for each entity, from the domain model.')
+        L.append("")
+        L.append("They are stated in business language, not code. Enforce the ones that")
+        L.append("matter in the unit that can break them - a rule nobody checks is a")
+        L.append('comment."""')
         L.append("")
         L.append("")
     names = ", ".join(repr(pascal(e["n"])) for e in spine["E"])
+    if inv:
+        names += ', "INVARIANTS"'
     L.append(f"__all__ = [{names}]")
     return "\n".join(L) + "\n"
 
@@ -227,7 +246,33 @@ class PipelineState(TypedDict, total=False):
 '''
 
 
-def gen_agent_module(unit, digest) -> str:
+def _rules_src(ops, spine=None) -> str:
+    """Preconditions and postconditions, as data the handler can assert.
+
+    The domain model states them for every operation and nothing carried them
+    into the code, so each one had to be rediscovered from the brief.
+    """
+    # The digest deliberately omits pre/post - the planner does not need them
+    # and they would bloat its input - so take them from the spine.
+    by_name = {o["n"]: o for o in (spine or {}).get("O", [])}
+    rows = []
+    for op in ops:
+        o = by_name.get(op["n"], op)
+        if not (o.get("pre") or o.get("post")):
+            continue
+        rows.append(f"    {op['n']!r}: {{")
+        rows.append(f'        "pre": {o.get("pre", [])!r},')
+        rows.append(f'        "post": {o.get("post", [])!r},')
+        rows.append("    },")
+    if not rows:
+        return "RULES: dict[str, dict[str, list[str]]] = {}"
+    return ("# What must hold before each operation, and what must hold after.\n"
+            "# From the domain model; assert the ones that matter.\n"
+            "RULES: dict[str, dict[str, list[str]]] = {\n"
+            + "\n".join(rows) + "\n}")
+
+
+def gen_agent_module(unit, digest, spine=None) -> str:
     ops = [o for o in digest["operations"] if o["n"] in unit["owns"]]
     table = "\n".join(
         f"#   {o['n']:<28} {o['e']:<18} {o['f']} -> {o['t']}"
@@ -235,6 +280,7 @@ def gen_agent_module(unit, digest) -> str:
         + (f"   creates {', '.join(o['creates'])}" if o.get("creates") else "")
         for o in ops)
     makes = sorted({c for o in ops for c in o.get("creates", [])})
+    rules_src = _rules_src(ops, spine)
     prompt = unit.get("prompt", "").replace('"""', "'''")
     tools = unit.get("tools", [])
     return f'''"""{unit.get("name", unit["id"])}.
@@ -267,6 +313,8 @@ HUMAN_APPROVAL: list[str] = {[o["n"] for o in ops if o.get("hitl")]!r}
 
 # entities this unit brings into existence - it must construct and persist them
 CREATES: list[str] = {makes!r}
+
+{rules_src}
 
 SYSTEM_PROMPT = """{prompt}
 
@@ -355,13 +403,14 @@ async def answer(state: PipelineState, question: str) -> dict[str, Any]:
 '''
 
 
-def gen_function_module(unit, digest) -> str:
+def gen_function_module(unit, digest, spine=None) -> str:
     ops = [o for o in digest["operations"] if o["n"] in unit["owns"]]
     table = "\n".join(
         f"#   {o['n']:<28} {o['e']:<18} {o['f']} -> {o['t']}"
         + (f"   creates {', '.join(o['creates'])}" if o.get("creates") else "")
         for o in ops)
     makes = sorted({c for o in ops for c in o.get("creates", [])})
+    rules_src = _rules_src(ops, spine)
     return f'''"""{unit["id"]} - deterministic. No model decides these.
 
 {unit.get("why", "")}
@@ -387,6 +436,8 @@ OPERATIONS: list[str] = {[o["n"] for o in ops]!r}
 
 # entities this unit brings into existence
 CREATES: list[str] = {makes!r}
+
+{rules_src}
 
 
 async def handle(state: PipelineState) -> dict[str, Any]:
@@ -600,9 +651,9 @@ def generate(digest, spine, topo):
         "orchestrator/pipeline.py": gen_pipeline(digest, topo, owner, edges, ends,
                                                  entry, readers),
         **{f"agents/{r['id']}.py": gen_reader_module(r, digest) for r in readers},
-        **{f"agents/{u['id']}.py": gen_agent_module(u, digest)
+        **{f"agents/{u['id']}.py": gen_agent_module(u, digest, spine)
            for u in units if u["kind"] == "agent"},
-        **{f"functions/{u['id']}.py": gen_function_module(u, digest)
+        **{f"functions/{u['id']}.py": gen_function_module(u, digest, spine)
            for u in units if u["kind"] == "function"},
     }, rep, units, entry
 
