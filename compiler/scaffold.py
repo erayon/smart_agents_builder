@@ -18,6 +18,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from compiler.langgraph_gen import snake                                  # noqa: E402
 from compiler.compile import qstate                                       # noqa: E402
+from compiler import pipeline_gen                                         # noqa: E402
 
 
 def write(path: pathlib.Path, text: str, *, once: bool = False) -> str:
@@ -97,6 +98,57 @@ def run_operation(state: dict, *, op: str, owner: str, kind: str,
         "history": [*state.get("history", []),
                     {"op": op, "owner": owner, "kind": kind}],
     }
+'''
+
+
+def pipeline_smoke_test(digest, topo, units, entry) -> str:
+    """Structure only. In agent granularity nothing executes until the unit
+    handlers are implemented, so asserting a full run would just assert
+    NotImplementedError."""
+    ids = [u["id"] for u in units]
+    hitl = sorted({u["id"] for u in units for o in digest["operations"]
+                   if o["n"] in u["owns"] and o.get("hitl")})
+    return f'''"""Smoke test: the pipeline is wired correctly.
+
+Run with: python -m pytest tests/ -q
+
+This checks structure, not behaviour. The unit handlers raise
+NotImplementedError until you write them, which is the point.
+"""
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
+from orchestrator import build_graph
+from orchestrator.models import *  # noqa: F401,F403
+
+
+EXPECTED_UNITS = {ids!r}
+HUMAN_APPROVAL_UNITS = {hitl!r}
+
+
+def test_graph_compiles():
+    app = build_graph()
+    nodes = {{n for n in app.get_graph().nodes if not n.startswith("__")}}
+    assert nodes == set(EXPECTED_UNITS), f"expected {{EXPECTED_UNITS}}, got {{sorted(nodes)}}"
+
+
+def test_entry_is_wired():
+    g = build_graph().get_graph()
+    starts = [e.target for e in g.edges if e.source == "__start__"]
+    assert starts == [{entry!r}], f"entry should be {entry!r}, got {{starts}}"
+
+
+def test_every_operation_is_owned():
+    import json
+    d = json.loads((pathlib.Path(__file__).resolve().parent.parent
+                    / "schema" / "digest.json").read_text())
+    topo = json.loads((pathlib.Path(__file__).resolve().parent.parent
+                       / "topology.json").read_text())
+    owned = [op for u in topo["agents"] + topo["functions"] for op in u["owns"]]
+    assert len(owned) == len(set(owned)), "an operation is owned twice"
+    assert set(owned) == {{o["n"] for o in d["operations"]}}, "operations missing an owner"
 '''
 
 
@@ -246,17 +298,21 @@ implement them — several sit on cycles, so there is no safe default.
 ## Layout
 
 ```
-PROBLEM.md          the brief, verbatim
+PROBLEM.md            the brief, verbatim
 schema/
-  spine.json        the domain model  - EDIT THIS
-  schema.jsonld     Context Studio graph (generated)
-  digest.json       planner input (generated)
-topology.json       the agent plan  - EDIT THIS
-graph.py            LangGraph wiring (generated - do not edit)
-handlers.py         what an operation actually does  - YOURS
-tools/              one module per system  - YOURS
-tests/              smoke test
-viewer/             open in a browser
+  spine.json          the domain model  - EDIT THIS
+  schema.jsonld       Context Studio graph (generated)
+  digest.json         planner input (generated)
+topology.json         the agent plan  - EDIT THIS
+orchestrator/
+  pipeline.py         the StateGraph, one node per unit (generated)
+  state.py            PipelineState, typed from the domain model (generated)
+  models.py           one payload model per entity (generated)
+agents/<id>.py        SYSTEM_PROMPT + handle()  - YOURS
+functions/<id>.py     deterministic steps, no model  - YOURS
+tools/<system>.py     one module per system  - YOURS
+tests/                smoke test
+viewer/               open in a browser
 ```
 
 ## Running it
@@ -269,14 +325,16 @@ python -m pytest tests/ -q
 ## What to implement first
 
 1. `tools/` — {", ".join(f"`{s}`" for s in systems[:4])}{" …" if len(systems) > 4 else ""}
-2. `handlers.py` — `run_operation`
-3. The routers in `graph.py`, by moving their logic into `handlers.py`
+2. `handle()` in each `functions/` module — these are rule-based and cheapest
+3. `handle()` in each `agents/` module — the SYSTEM_PROMPT is already written
+4. The `route_after_*` functions in `orchestrator/pipeline.py`, by moving their
+   logic into the units
 
 Generated {datetime.date.today().isoformat()}.
 '''
 
 
-def claude_md(digest, topo, brain) -> str:
+def claude_md(digest, topo, brain, granularity="agent") -> str:
     return f'''# {digest["domain"]}
 
 Agentic platform scaffold. Read this before changing anything.
@@ -286,16 +344,21 @@ Agentic platform scaffold. Read this before changing anything.
 | tier | files | rule |
 |---|---|---|
 | **source of truth** | `PROBLEM.md`, `schema/spine.json`, `topology.json` | edit these |
-| **generated** | `schema/schema.jsonld`, `schema/digest.json`, `graph.py`, `tools/__init__.py` | **never hand-edit** — regenerate |
-| **yours** | `handlers.py`, `tools/*.py`, `tests/` | written once, never regenerated |
+| **generated** | `schema/*.jsonld`, `schema/digest.json`, `orchestrator/*.py`, the package `__init__.py` files | **never hand-edit** — regenerate |
+| **yours** | `agents/*.py`, `functions/*.py`, `tools/*.py`, `tests/` | written once, never regenerated |
 
-**`graph.py` is generated.** If it is wrong, the fix is in `topology.json` or
-`schema/spine.json`, then regenerate. Editing `graph.py` directly means the
-next regeneration silently deletes your change.
+**`orchestrator/` is generated.** `pipeline.py` wires the graph, `state.py` and
+`models.py` are derived from the domain model's attributes. If any of it is
+wrong, the fix is in `topology.json` or `schema/spine.json`, then regenerate.
+Editing them directly means the next regeneration deletes your change.
 
-`graph.py` imports `run_operation` from `handlers.py` and `TOOLS` from
-`tools/` when they exist. That is what makes regeneration safe: the wiring is
-generated, the behaviour is yours.
+Each unit is one node, not one node per state transition. The state machine
+lives in `state["status"]`; the edges between units are the handoffs, derived
+from which unit owns an operation that can leave a state another unit lands in.
+
+`orchestrator/pipeline.py` imports `handle()` from each module in `agents/` and
+`functions/`. That is what makes regeneration safe: the wiring is generated,
+the behaviour is yours.
 
 ## Making changes
 
@@ -306,14 +369,16 @@ The builder lives at `{brain}`.
 $EDITOR schema/spine.json
 python {brain}/compiler/compile.py schema/spine.json -o schema/ --strict \\
     --jsonld-out schema/schema.jsonld --digest-out schema/digest.json
-python {brain}/compiler/langgraph_gen.py schema/digest.json topology.json -o graph.py --strict
+python {brain}/compiler/pipeline_gen.py schema/digest.json topology.json \\
+    --spine schema/spine.json -o . --strict
 ```
 Re-run the planner only if the new operations need owners.
 
 **The agent split is wrong** — merge two agents, move an operation:
 ```bash
 $EDITOR topology.json
-python {brain}/compiler/langgraph_gen.py schema/digest.json topology.json -o graph.py --strict
+python {brain}/compiler/pipeline_gen.py schema/digest.json topology.json \\
+    --spine schema/spine.json -o . --strict
 ```
 No model call. Pure codegen, seconds.
 
@@ -358,6 +423,9 @@ def main():
     ap.add_argument("--jsonld")
     ap.add_argument("--problem", help="file holding the original brief")
     ap.add_argument("--no-git", action="store_true")
+    ap.add_argument("--granularity", choices=["agent", "operation"], default="agent",
+                    help="agent: one node per agent, the production shape (default). "
+                         "operation: one node per state transition, exhaustive.")
     a = ap.parse_args()
 
     out = pathlib.Path(a.outdir)
@@ -374,21 +442,32 @@ def main():
         acts["schema/schema.jsonld"] = write(out / "schema/schema.jsonld",
                                              pathlib.Path(a.jsonld).read_text())
     acts["topology.json"] = write(out / "topology.json", json.dumps(topo, indent=1))
-    acts["graph.py"] = write(out / "graph.py", pathlib.Path(a.graph).read_text())
+
+    if a.granularity == "agent":
+        files, rep, units, entry = pipeline_gen.generate(digest, spine, topo)
+        files.update(pipeline_gen.gen_inits(units))
+        acts.update(pipeline_gen.write_files(files, out))
+    else:
+        acts["graph.py"] = write(out / "graph.py", pathlib.Path(a.graph).read_text())
+        acts["handlers.py"] = write(out / "handlers.py", HANDLERS, once=True)
 
     if a.problem:
         acts["PROBLEM.md"] = write(out / "PROBLEM.md", pathlib.Path(a.problem).read_text())
 
     # tier three - created once, never regenerated
-    acts["handlers.py"] = write(out / "handlers.py", HANDLERS, once=True)
     for s in systems:
         acts[f"tools/{snake(s)}.py"] = write(out / "tools" / f"{snake(s)}.py",
                                              tool_module(s, used[s]), once=True)
     acts["tools/__init__.py"] = write(out / "tools/__init__.py", tools_init(systems))
 
-    first = terminating_decisions(digest)
-    acts["tests/test_smoke.py"] = write(out / "tests/test_smoke.py",
-                                        smoke_test(digest, topo, first), once=True)
+    if a.granularity == "agent":
+        units = pipeline_gen.units_of(topo)
+        owner = {op: u["id"] for u in units for op in u["owns"]}
+        entry = pipeline_gen.entry_unit(digest, topo, owner)
+        body = pipeline_smoke_test(digest, topo, units, entry)
+    else:
+        body = smoke_test(digest, topo, terminating_decisions(digest))
+    acts["tests/test_smoke.py"] = write(out / "tests/test_smoke.py", body, once=True)
 
     viewer_src = ROOT / "viewer"
     if viewer_src.is_dir():
@@ -398,7 +477,7 @@ def main():
     problem_text = pathlib.Path(a.problem).read_text() if a.problem else ""
     acts["README.md"] = write(out / "README.md",
                               readme(problem_text, spine, digest, topo, systems))
-    acts["CLAUDE.md"] = write(out / "CLAUDE.md", claude_md(digest, topo, ROOT))
+    acts["CLAUDE.md"] = write(out / "CLAUDE.md", claude_md(digest, topo, ROOT, a.granularity))
     acts[".gitignore"] = write(out / ".gitignore",
                                "__pycache__/\n*.py[cod]\n.venv/\n.env\n.pytest_cache/\n", once=True)
 

@@ -2,40 +2,93 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Topology",
   "type": "object",
-  "required": ["domain", "ns", "rationale", "agents", "functions", "routers"],
+  "required": [
+    "domain",
+    "ns",
+    "rationale",
+    "agents",
+    "functions",
+    "routers"
+  ],
   "additionalProperties": false,
   "properties": {
-    "domain": { "type": "string" },
-    "ns": { "type": "string" },
+    "domain": {
+      "type": "string"
+    },
+    "ns": {
+      "type": "string"
+    },
     "rationale": {
-      "type": "string", "minLength": 40,
+      "type": "string",
+      "minLength": 40,
       "description": "Why this many agents, in prose. Must name the evidence used."
     },
     "orchestrator": {
       "type": "object",
-      "required": ["enabled"],
+      "required": [
+        "enabled"
+      ],
       "additionalProperties": false,
       "properties": {
-        "enabled": { "type": "boolean" },
-        "name": { "type": "string" },
-        "policy": { "type": "string" }
+        "enabled": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "policy": {
+          "type": "string"
+        }
       }
     },
     "agents": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "name", "role", "prompt", "owns", "tools", "why"],
+        "required": [
+          "id",
+          "name",
+          "role",
+          "prompt",
+          "owns",
+          "tools",
+          "why"
+        ],
         "additionalProperties": false,
         "properties": {
-          "id":     { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
-          "name":   { "type": "string" },
-          "role":   { "type": "string", "minLength": 10 },
-          "prompt": { "type": "string", "minLength": 40 },
-          "owns":   { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-          "tools":  { "type": "array", "items": { "type": "string" } },
-          "why":    { "type": "string", "minLength": 20,
-                      "description": "The cohesion evidence for this grouping." }
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "minLength": 10
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 40
+          },
+          "owns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "why": {
+            "type": "string",
+            "minLength": 20,
+            "description": "The cohesion evidence for this grouping."
+          }
         }
       }
     },
@@ -44,13 +97,34 @@
       "description": "Deterministic steps. No LLM decides these.",
       "items": {
         "type": "object",
-        "required": ["id", "owns", "why"],
+        "required": [
+          "id",
+          "owns",
+          "why"
+        ],
         "additionalProperties": false,
         "properties": {
-          "id":    { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
-          "owns":  { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-          "tools": { "type": "array", "items": { "type": "string" } },
-          "why":   { "type": "string", "minLength": 10 }
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "owns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "why": {
+            "type": "string",
+            "minLength": 10
+          }
         }
       }
     },
@@ -59,14 +133,30 @@
       "description": "One per decision point in the digest.",
       "items": {
         "type": "object",
-        "required": ["state", "decidedBy", "rule"],
+        "required": [
+          "state",
+          "decidedBy",
+          "rule"
+        ],
         "additionalProperties": false,
         "properties": {
-          "state":     { "type": "string" },
-          "decidedBy": { "type": "string", "description": "agent or function id" },
-          "rule":      { "type": "string", "minLength": 20 }
+          "state": {
+            "type": "string"
+          },
+          "decidedBy": {
+            "type": "string",
+            "description": "agent or function id"
+          },
+          "rule": {
+            "type": "string",
+            "minLength": 20
+          }
         }
       }
+    },
+    "entry": {
+      "type": "string",
+      "description": "Optional: the unit a run starts in. Derived when omitted."
     }
   }
 }
