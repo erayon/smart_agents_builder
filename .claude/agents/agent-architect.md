@@ -41,7 +41,8 @@ afterwards, once the human has approved the split.
 - an agent's tools appear in the `sys` of its **own** operations — least
   privilege, no borrowing
 - one router per decision point; `decidedBy` resolves to a real id
-- no duplicate ids, no unit owning zero operations
+- no duplicate ids; every unit either owns operations or is a read-only agent
+- a read-only agent's `reads` name real entities, and only an agent may be one
 
 ## Warnings you should usually act on
 
@@ -51,6 +52,22 @@ afterwards, once the human has approved the split.
   sign you merged two seams. Justify it or split it.
 - `T13` — approaching one agent per operation. That is the named anti-pattern.
 - `T14` — three or more agents with no orchestrator.
+
+## Agents that only answer
+
+Some questions change nothing. An agent answering "where is my claim?" starts
+nothing and advances nothing, so it owns no operations and declares `reads`:
+
+```json
+{ "id": "status", "owns": [], "reads": ["Claim", "Assessment"],
+  "tools": ["ClaimDB"], "why": "Answering changes nothing." }
+```
+
+Add one when people will ask about progress. Do **not** fold the question into
+an acting agent instead — an agent that can both answer and act can move a
+claim while being asked about one. Such an agent is kept out of the lifecycle
+graph and given its own, and its tools come from the systems touching the
+entities it reads.
 
 ## Resist fanning out
 

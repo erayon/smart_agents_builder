@@ -44,6 +44,21 @@ targets and connectivity. None of that is negotiable.
 - terminal states have **no** outgoing operations
 - an operation's `f` and `t` both belong to the entity named in `e`
 - every entity appears in at least one relation, in either direction
+- every lifecycle entity has an origin: either some operation lists it in
+  `creates`, or the entity is marked `"origin": "external"`
+
+That last one catches the mistake this format invites. An operation's `f` and
+`t` must belong to one entity, so the moment a *different* entity is born can
+never be a transition. Writing "parts order raised" in a postcondition records
+it for a human and for nobody else. `creates` makes it a real edge:
+
+```json
+{"n": "SuspendForParts", "e": "Job", "creates": ["PartsOrder"]}
+{"n": "WorkOrder", "origin": "external"}
+```
+
+Use `origin: external` for things a customer files or a sensor raises. Use
+`creates` for everything the process itself makes.
 
 ## Warnings are advice, not errors
 
