@@ -473,13 +473,18 @@ def main():
     ap.add_argument("digest")
     ap.add_argument("topology")
     ap.add_argument("--spine", required=True)
-    ap.add_argument("-o", "--outdir", required=True)
+    ap.add_argument("-o", "--outdir", help="write the package here")
+    ap.add_argument("--check", action="store_true",
+                    help="validate the topology and report, writing nothing")
     ap.add_argument("--strict", action="store_true")
     a = ap.parse_args()
 
     digest = json.loads(pathlib.Path(a.digest).read_text())
     spine = json.loads(pathlib.Path(a.spine).read_text())
     topo = json.loads(pathlib.Path(a.topology).read_text())
+    if not a.check and not a.outdir:
+        ap.error("give -o/--outdir, or --check to validate without writing")
+
     files, rep, units, entry = generate(digest, spine, topo)
     files.update(gen_inits(units))
 
@@ -488,6 +493,19 @@ def main():
     print()
     if a.strict and rep.errors:
         sys.exit(1)
+
+    if a.check:
+        agents = [u for u in units if u["kind"] == "agent"]
+        funcs = [u for u in units if u["kind"] == "function"]
+        for u in agents:
+            print(f"  agent    {u['id']:<20} {len(u['owns']):>2} ops  "
+                  f"tools={','.join(u.get('tools', [])) or '-'}")
+        for u in funcs:
+            print(f"  function {u['id']:<20} {len(u['owns']):>2} ops  (deterministic)")
+        print(f"\nunits: {len(units)}  entry: {entry}  "
+              f"(nothing written - this was --check)")
+        return files
+
     acts = write_files(files, a.outdir)
     for rel in sorted(acts):
         print(f"  {acts[rel]:<8} {rel:<40} {len(files[rel].splitlines()):>4} lines")

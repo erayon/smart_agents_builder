@@ -22,18 +22,27 @@ Plain English in, a working agentic-platform project out.
 
 ```
 <outdir>/
-  PROBLEM.md        the brief, verbatim          <- source of truth
-  schema/spine.json the domain model             <- source of truth, edit freely
-  schema/*.jsonld   Context Studio graph         <- generated
-  topology.json     the agent plan               <- source of truth
-  graph.py          LangGraph wiring             <- generated, never hand-edit
-  handlers.py       what operations do           <- yours, written once
-  tools/            one module per system        <- yours, written once
-  tests/            smoke test
-  viewer/           open in a browser
-  CLAUDE.md         briefs the next session
-  README.md         for humans
+  PROBLEM.md            the brief, verbatim        <- source of truth
+  schema/spine.json     the domain model           <- source of truth, edit freely
+  schema/*.jsonld       Context Studio graph       <- generated
+  topology.json         the agent plan             <- source of truth
+  orchestrator/
+    pipeline.py         StateGraph, one node per unit   <- generated
+    state.py            PipelineState, typed            <- generated
+    models.py           one payload model per entity    <- generated
+  agents/<id>.py        SYSTEM_PROMPT + handle()   <- yours, written once
+  functions/<id>.py     deterministic, no model    <- yours, written once
+  tools/<system>.py     one module per system      <- yours, written once
+  tests/                smoke test
+  viewer/               open in a browser
+  CLAUDE.md             briefs the next session
+  README.md             for humans
 ```
+
+One node per **agent**, not per state transition. The state machine lives in
+`state["status"]`; handoff edges between units are derived from it. Use
+`--granularity operation` for the exhaustive graph instead - a node per
+transition, useful for proving reachability, unwieldy to develop against.
 
 ## Find the brain first
 
@@ -120,10 +129,12 @@ Run this when the first argument is `continue`, or straight after stage 1 when
 
 3. Delegate to the **agent-architect** subagent with `$BRAIN` and `$OUT`.
 
-4. Verify its output yourself:
+4. Verify its output yourself. `--check` writes nothing, so the user still
+   sees the split before any code exists:
    ```bash
-   $BRAIN/.venv/bin/python $BRAIN/compiler/langgraph_gen.py \
-       $OUT/schema/digest.json $OUT/topology.json -o $OUT/graph.py --strict
+   $BRAIN/.venv/bin/python $BRAIN/compiler/pipeline_gen.py \
+       $OUT/schema/digest.json $OUT/topology.json \
+       --spine $OUT/schema/spine.json --check --strict
    ```
 
 5. Unless `--yes` or `--auto`, show the user the agent split — each agent, its
@@ -135,27 +146,32 @@ Run this when the first argument is `continue`, or straight after stage 1 when
    ```bash
    $BRAIN/.venv/bin/python $BRAIN/compiler/scaffold.py $OUT \
        --spine $OUT/schema/spine.json --digest $OUT/schema/digest.json \
-       --topology $OUT/topology.json --graph $OUT/graph.py \
+       --topology $OUT/topology.json \
        --jsonld $OUT/schema/schema.jsonld --problem $OUT/PROBLEM.md
    ```
-   This writes `handlers.py`, `tools/`, `tests/`, `README.md` and `CLAUDE.md`,
-   and makes the first git commit. Files in the "yours" tier are created only
-   when missing, so re-running never destroys an implementation.
+   This writes `orchestrator/`, one module per agent and function, `tools/`,
+   `tests/`, `README.md` and `CLAUDE.md`, and makes the first git commit.
+   Files in the "yours" tier are created only when missing, so re-running
+   never destroys an implementation.
 
 7. Run the smoke test:
    ```bash
    cd $OUT && $BRAIN/.venv/bin/python -m pytest tests/ -q
    ```
 
-8. Report: agents, functions, tools, routers, interrupts, whether the smoke
-   test passed, and what to implement first.
+8. Report: agents, functions, tools, interrupts, the entry unit, whether the
+   smoke test passed, and what to implement first. Say plainly that nothing
+   **runs** yet - every `handle()` raises `NotImplementedError` by design, and
+   the smoke test asserts wiring, not behaviour.
 
 ---
 
 ## Rules
 
-- **Never hand-edit `graph.py`.** It is generated. Fix `topology.json` or
-  `schema/spine.json` and regenerate.
+- **Never hand-edit `orchestrator/`.** `pipeline.py`, `state.py` and
+  `models.py` are generated. Fix `topology.json` or `schema/spine.json` and
+  regenerate. The modules under `agents/`, `functions/` and `tools/` are the
+  user's and are never overwritten.
 - **Never skip `--strict`.** A pipeline that generates an invalid model is
   worse than one that fails.
 - **Never write the spine yourself in the main thread.** Use the subagent; it

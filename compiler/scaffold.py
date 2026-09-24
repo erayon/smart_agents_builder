@@ -419,7 +419,7 @@ def main():
     ap.add_argument("--spine", required=True)
     ap.add_argument("--digest", required=True)
     ap.add_argument("--topology", required=True)
-    ap.add_argument("--graph", required=True)
+    ap.add_argument("--graph", help="only used with --granularity operation")
     ap.add_argument("--jsonld")
     ap.add_argument("--problem", help="file holding the original brief")
     ap.add_argument("--no-git", action="store_true")
@@ -427,6 +427,9 @@ def main():
                     help="agent: one node per agent, the production shape (default). "
                          "operation: one node per state transition, exhaustive.")
     a = ap.parse_args()
+
+    if a.granularity == "operation" and not a.graph:
+        ap.error("--granularity operation needs --graph")
 
     out = pathlib.Path(a.outdir)
     spine = json.loads(pathlib.Path(a.spine).read_text())

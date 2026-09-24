@@ -22,12 +22,18 @@ authoritative spec. This prompt only tells you how to run the loop.
 2. Read `$BRAIN/prompts/02_agent_planner.md`.
 3. Read `$BRAIN/examples/claims.topology.json` as a worked example.
 4. Write your topology to `$OUT/topology.json`.
-5. Generate and validate:
+5. Validate it. `--check` reports and writes nothing, which matters: a human
+   reviews the split before any code is generated.
    ```bash
-   $BRAIN/.venv/bin/python $BRAIN/compiler/langgraph_gen.py \
-       $OUT/schema/digest.json $OUT/topology.json -o $OUT/graph.py --strict
+   $BRAIN/.venv/bin/python $BRAIN/compiler/pipeline_gen.py \
+       $OUT/schema/digest.json $OUT/topology.json \
+       --spine $OUT/schema/spine.json --check --strict
    ```
 6. If it exits non-zero, fix the topology and re-run. Repeat until clean.
+
+**Do not write any code.** You produce `topology.json` and nothing else. The
+orchestrator, the agent modules and the function modules are generated from it
+afterwards, once the human has approved the split.
 
 ## What the validator enforces
 
@@ -55,6 +61,27 @@ splitting. "One agent, N tools" is a valid answer.
 
 Every `why` must name evidence. A `why` that restates the agent's name is not
 a justification and you should rewrite it.
+
+## What your topology turns into
+
+Each unit becomes **one node** in the graph, not one node per operation, and
+its own module:
+
+- an agent becomes `agents/<id>.py`, carrying its `SYSTEM_PROMPT` and a
+  `handle()` that advances the run
+- a function becomes `functions/<id>.py`, deterministic, with no model in it
+- handoff edges are derived from the state machine, so you do not describe
+  ordering: unit U hands to V when U owns an operation landing in a state V
+  owns an operation leaving
+
+Two things follow from that. Write each `prompt` as the real system prompt for
+a live agent, not a label - it ships verbatim. And keep `owns` coherent: a unit
+that owns operations scattered across unrelated states produces a node the
+graph hands to from everywhere, which is a sign the grouping is wrong.
+
+You may set `"entry"` to the id of the unit a run should start in. Leave it out
+unless the derived one is wrong - it is derived by finding lifecycle states
+nothing transitions into and preferring an agent.
 
 ## When you are done
 
