@@ -1,0 +1,56 @@
+{
+ "provider": "groq/openai/gpt-oss-120b",
+ "when": "2026-09-24 21:16",
+ "rows": [
+  {
+   "ok": true,
+   "attempts": 2,
+   "secs": 99.5,
+   "nodes": 30,
+   "E": 6,
+   "S": 12,
+   "O": 10,
+   "decisions": 2,
+   "actors": 3,
+   "systems": 3,
+   "hitl": 0,
+   "highRisk": 0,
+   "coverage": 1.0,
+   "warnings": 0,
+   "out_tokens": 8149,
+   "hash": "1d0d27c7c677",
+   "domain": "claims",
+   "run": 1
+  },
+  {
+   "ok": false,
+   "attempts": 0,
+   "secs": 10.3,
+   "errors": [
+    "RuntimeError: gave up after 6 attempts: Error code: 413 - {'error': {'message': 'Request too large for model `openai/gpt-oss-120b` in organization `org_01hty172"
+   ],
+   "domain": "claims",
+   "run": 2
+  },
+  {
+   "ok": true,
+   "attempts": 1,
+   "secs": 9.5,
+   "nodes": 35,
+   "E": 5,
+   "S": 10,
+   "O": 10,
+   "decisions": 2,
+   "actors": 3,
+   "systems": 4,
+   "hitl": 5,
+   "highRisk": 2,
+   "coverage": 1.0,
+   "warnings": 0,
+   "out_tokens": 4024,
+   "hash": "055f76733edd",
+   "domain": "claims",
+   "run": 3
+  }
+ ]
+}

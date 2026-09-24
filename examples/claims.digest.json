@@ -15,7 +15,9 @@
   {
    "n": "Claimant",
    "lifecycle": false,
-   "states": 0,
+   "states": [],
+   "initial": null,
+   "terminal": [],
    "relatesTo": [
     "Policy",
     "Claim"
@@ -24,7 +26,9 @@
   {
    "n": "Policy",
    "lifecycle": false,
-   "states": 0,
+   "states": [],
+   "initial": null,
+   "terminal": [],
    "relatesTo": [
     "Claimant"
    ]
@@ -32,7 +36,19 @@
   {
    "n": "Claim",
    "lifecycle": true,
-   "states": 7,
+   "states": [
+    "Draft",
+    "Submitted",
+    "UnderReview",
+    "PendingInfo",
+    "Approved",
+    "Rejected",
+    "Closed"
+   ],
+   "initial": "Draft",
+   "terminal": [
+    "Closed"
+   ],
    "relatesTo": [
     "Claimant",
     "Policy",
@@ -45,7 +61,16 @@
   {
    "n": "Document",
    "lifecycle": true,
-   "states": 3,
+   "states": [
+    "Uploaded",
+    "Verified",
+    "Invalid"
+   ],
+   "initial": "Uploaded",
+   "terminal": [
+    "Verified",
+    "Invalid"
+   ],
    "relatesTo": [
     "Claim"
    ]
@@ -53,7 +78,15 @@
   {
    "n": "Assessment",
    "lifecycle": true,
-   "states": 3,
+   "states": [
+    "Pending",
+    "InProgress",
+    "Completed"
+   ],
+   "initial": "Pending",
+   "terminal": [
+    "Completed"
+   ],
    "relatesTo": [
     "Claim"
    ]
@@ -61,7 +94,16 @@
   {
    "n": "Settlement",
    "lifecycle": true,
-   "states": 3,
+   "states": [
+    "Proposed",
+    "Accepted",
+    "Declined"
+   ],
+   "initial": "Proposed",
+   "terminal": [
+    "Accepted",
+    "Declined"
+   ],
    "relatesTo": [
     "Claim",
     "Payment"
@@ -70,7 +112,16 @@
   {
    "n": "Payment",
    "lifecycle": true,
-   "states": 3,
+   "states": [
+    "Scheduled",
+    "Paid",
+    "Failed"
+   ],
+   "initial": "Scheduled",
+   "terminal": [
+    "Paid",
+    "Failed"
+   ],
    "relatesTo": [
     "Settlement"
    ]
@@ -78,7 +129,17 @@
   {
    "n": "Appeal",
    "lifecycle": true,
-   "states": 4,
+   "states": [
+    "Filed",
+    "UnderAppealReview",
+    "Upheld",
+    "Overturned"
+   ],
+   "initial": "Filed",
+   "terminal": [
+    "Upheld",
+    "Overturned"
+   ],
    "relatesTo": [
     "Claim"
    ]

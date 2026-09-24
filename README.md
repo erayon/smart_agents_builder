@@ -236,12 +236,13 @@ What has actually been exercised, as opposed to written.
 | Repair loop | **verified** offline, no key or network (`tests/test_loop.py`) |
 | Viewer validator agrees with the Python one | **verified** on three files including a broken one |
 | Live generation, Groq | **verified** - `openai/gpt-oss-120b`, one attempt, clean output |
-| Eval harness across 5 domains | **verified** - see `evals/report.json` |
-| Determinism at `temperature=0` | **verified** - see `evals/determinism.json` |
+| Eval harness across 5 domains | **run** - 4/5 pass, mean 2.0 attempts, coverage 1.00 (`evals/report.json`) |
+| Determinism at `temperature=0` | **fails** - two runs of one domain gave two different spines (`evals/determinism.json`) |
 | Live generation: xAI Grok, Anthropic, OpenAI, Google | **not verified** - wired, packages import, no key available |
 | Ollama | **partial** - runs, but a 4 GB GPU cannot hold a useful model plus a 16k context; no run completed |
 | Agent mode (`--mode agent`) | **not verified** - exceeds an 8000 TPM quota and falls back to chain mode; the fallback is verified, the agent path is not |
-| Constrained decoding | **not implemented** - `spec/spine.schema.json` validates after generation, it does not constrain it |
+| Constrained decoding | **not implemented** - the JSON Schemas validate after generation, they do not constrain it |
+| Stage 2 codegen | **verified** - generated graph compiles, runs, pauses at a human interrupt, resumes to END |
 
 ## Not done
 
@@ -250,3 +251,59 @@ What has actually been exercised, as opposed to written.
 - **SHACL shapes** for validating the compiled JSON-LD as RDF. The Python and
   JavaScript validators cover the same rules today, which is duplication that
   SHACL would remove.
+
+
+## Stage 2 - agent topology
+
+```
+digest.json ──▶ [LLM: prompts/02_agent_planner.md] ──▶ topology.json
+                                                            │
+                                      compiler/langgraph_gen.py (deterministic)
+                                                            │
+                                          ┌─────────────────┴──────────────┐
+                                          ▼                                ▼
+                                    graph.py (runnable)            validation report
+```
+
+```bash
+.venv/bin/python compiler/langgraph_gen.py \
+    examples/claims.digest.json examples/claims.topology.json \
+    -o examples/claims_graph.py --strict
+```
+
+The planner decides only what the data cannot settle: how to group operations
+into agents, and why. Everything else is derived - nodes from operations,
+conditional edges from decision points, `interrupt_before` from `hitl`, the
+tool inventory from `sys`, `START`/`END` from initial and terminal states.
+
+Operations with `by: System` become **plain functions, not agents**. A model
+has no business deciding whether a bank transfer settled.
+
+The topology validator enforces: every operation owned exactly once; tools
+drawn only from that unit's own operations (least privilege); one router per
+decision point; `decidedBy` resolves to a real id; and it warns when the
+agent-to-operation ratio approaches one-per-operation, or when three or more
+agents run without an orchestrator.
+
+Generated routers **raise rather than default to a branch**. Several decision
+points sit on a cycle (`RequestMoreInfo` to `ResubmitInfo` and back), so an
+arbitrary default loops forever instead of failing.
+
+On the claims example: 4 agents, 2 functions, 9 tools, 5 routers, 6
+interrupts, 375 lines, and a run that pauses at `approve_claim` and resumes
+to `END`.
+
+## Known quality issues
+
+Found by the eval, not yet fixed.
+
+1. **`temperature=0` is not deterministic on Groq.** Two runs of the same
+   domain produced different spines (`6E/12S/10O` vs `5E/10S/10O`). The
+   setting is applied; the provider does not honour it as reproducibility.
+   Do not assume re-running gives the same schema.
+2. **The model under-models against the prompt's own sizing guidance.** The
+   prompt asks for 15-35 operations; runs produced 8-12, and 9-16 states
+   against a stated 15-30. Either the guidance needs to be more forceful or
+   the floor needs enforcing in the validator.
+3. **Mean 2.0 repair attempts.** Better than truncation-era 4, but a
+   first-pass-valid rate of 100% should be reachable.

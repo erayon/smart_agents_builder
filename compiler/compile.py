@@ -296,9 +296,13 @@ def build_digest(spine, ents, ops, decisions):
                     "systems": len(by_system),
                     "humanInLoopOps": sum(1 for o in ops if o.get("hitl")),
                     "highRiskOps": sum(1 for o in ops if o.get("risk") == "high")}),
+        # stage 2 needs the actual state names plus initial/terminal to place
+        # START and END; counts alone are not enough to build a graph.
         ("entities", [{"n": n,
                        "lifecycle": bool(e.get("s")),
-                       "states": len(e.get("s", [])),
+                       "states": e.get("s", []),
+                       "initial": e.get("s0"),
+                       "terminal": e.get("sT", []),
                        "relatesTo": [r[0] for r in e.get("r", [])]}
                       for n, e in ents.items()]),
         ("operations", [OrderedDict([("n", o["n"]), ("e", o["e"]),

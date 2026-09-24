@@ -137,8 +137,10 @@ def build_spine(description: str, llm, max_repairs: int = 3,
             errs = [f"parse: {e}"]
             res.log.append(f"attempt {attempt}: {errs[0]}")
             say("fail", errs[0])
-            messages += [reply, HumanMessage(
-                content=REPAIR_TEMPLATE.format(errors="- " + errs[0]))]
+            messages = [SystemMessage(content=system),
+                        HumanMessage(content=f"Business domain:\n\n{description.strip()}"),
+                        HumanMessage(content=REPAIR_TEMPLATE.format(
+                            errors="- " + errs[0]))]
             continue
 
         errs = schema_check(spine) or []
@@ -158,8 +160,15 @@ def build_spine(description: str, llm, max_repairs: int = 3,
         if attempt == max_repairs + 1:
             res.errors, res.spine = errs, spine
             return res
-        messages += [reply, HumanMessage(content=REPAIR_TEMPLATE.format(
-            errors="\n".join("- " + e for e in errs[:25])))]
+        # Window the conversation instead of appending. Re-send the previous
+        # spine compactly (no indentation) with the errors, so the request size
+        # stays flat across attempts rather than growing by a spine each time.
+        messages = [SystemMessage(content=system),
+                    HumanMessage(content=f"Business domain:\n\n{description.strip()}"),
+                    HumanMessage(content="Your previous attempt:\n"
+                                         + json.dumps(spine, separators=(",", ":"))),
+                    HumanMessage(content=REPAIR_TEMPLATE.format(
+                        errors="\n".join("- " + e for e in errs[:25])))]
 
     if res.spine is None:
         res.errors = res.errors or ["no valid spine produced"]
